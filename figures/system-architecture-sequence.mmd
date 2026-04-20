@@ -1,0 +1,18 @@
+sequenceDiagram
+  participant FE as Frontend
+  participant BE as Backend
+  participant OW as Optimizer workers
+
+  FE->>BE: REST request (update config / solve / cancel)
+  Note over BE: Create task + persist run state
+  OW->>BE: Long-poll endpoint
+  BE-->>OW: Task payload / cancel signal
+  Note over OW: CP-SAT phases (long-running)
+  loop While CP-SAT runs
+    OW->>BE: WebSocket logs/progress
+    BE-->>FE: Intermediate status
+  end
+  OW->>BE: Return schedule artifacts
+  Note over BE: Aggregate status + store outputs
+  BE-->>FE: Final result payload
+  Note over FE: Inspect result + continue editing
