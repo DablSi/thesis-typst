@@ -8,14 +8,17 @@
 #show: template
 
 // Start page counter from here
-#counter(page).update(2)
+// #counter(page).update(1)
 
 #include "sections/contents.typ"
-// #include "sections/list/tables.typ"
-// #include "sections/list/figures.typ"
+#include "sections/list/tables.typ"
+#include "sections/list/figures.typ"
 #include "sections/abstract.typ"
 
-// Start numbering pages from the first chapter
+// Start numbering pages from the first chapter.
+// Mirrors LaTeX template's \setcounter{page}{7}: Title=1, Contents=2-3,
+// LoT=4, LoF=5, Abstract=6, Chapter 1=7. Adjust if front matter length changes.
+// #counter(page).update(7)
 #show: numbering
 
 #include "sections/chapters/1.typ"
@@ -23,6 +26,9 @@
 #include "sections/chapters/3.typ"
 #include "sections/chapters/4.typ"
 #include "sections/chapters/5.typ"
+#include "sections/chapters/6.typ"
+#include "sections/chapters/7.typ"
+#include "sections/chapters/8.typ"
 
 // Do the rest for other chapters:
 // #include "sections/chapters/n.typ"

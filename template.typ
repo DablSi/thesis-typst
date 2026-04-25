@@ -4,16 +4,18 @@
   set text(
     size: 14pt,
     lang: "en",
-    region: "ru",
     top-edge: 0.7em,
     bottom-edge: -0.3em,
-    font: "Liberation Serif",
+    // Match LaTeX template's \usepackage{tempora}; fall back to Liberation Serif
+    // if the bundled Tempora .otf files are not installed.
+    font: ("Tempora LGC Uni", "Liberation Serif"),
   )
   set par(
     leading: 0.7em,
     justify: true,
+    // Match LaTeX template's \setlength{\parindent}{2em} at 14pt.
     first-line-indent: (
-      amount: 0.8cm,
+      amount: 1cm,
     ),
   )
   set list(
@@ -39,9 +41,11 @@
   )
   set page(
     "a4",
+    // Mirror LaTeX template's setmarginsrb (left=2.5cm, body top=2.2cm,
+    // headheight=32.0976pt, headsep=10mm, right=2.2cm, bottom=2.2cm).
     margin: (
       left: 2.5cm,
-      top: 1in + 2.2cm,
+      top: 2.2cm + 32.0976pt + 10mm,
       right: 2.2cm,
       bottom: 2.2cm
     ),
@@ -115,6 +119,11 @@
   show heading.where(level: 1): it => {
     pagebreak(weak: true)
 
+    // Reset image figure counter at the start of each chapter so that figures
+    // are numbered "1.1, 1.2" within Chapter 1, "2.1, 2.2" within Chapter 2, etc.
+    // Mirrors LaTeX's \counterwithin{figure}{chapter}.
+    counter(figure.where(kind: image)).update(0)
+
     set par(
       leading: 1em,
       first-line-indent: (
@@ -122,7 +131,7 @@
         all: false,
       ),
     )
-    
+
     set text(size: 1.5em)
 
     v(2.5cm)
@@ -134,7 +143,7 @@
         #text(size: 1.2em, it.body)
       ]
     } else { it }
-    
+
     v(0.5cm)
   }
   
@@ -178,11 +187,15 @@
     align(center, it.body)
   }
   
-  // show figure.where(kind: image): set figure(supplement: "Fig.")
-  // show figure.where(kind: image): set figure.caption(separator: ". ")
-  
-  show figure.where(kind: "figure"): set figure(supplement: "Fig.")
-  show figure.where(kind: "figure"): set figure.caption(separator: ". ")
+  // Image figures: "Fig. 1.1. Caption" — mirrors LaTeX
+  // \captionsetup[figure]{name={Fig.}, labelsep=period} with
+  // \counterwithin{figure}{chapter}.
+  show figure.where(kind: image): set figure(supplement: "Fig.")
+  show figure.where(kind: image): set figure.caption(separator: ". ")
+  show figure.where(kind: image): set figure(numbering: n => {
+    let chapter = counter(heading.where(level: 1)).at(here()).first()
+    [#chapter.#n]
+  })
   show figure.caption: it => {
     set align(left)
     it
@@ -203,11 +216,16 @@
 
 #let numbering(body) = {
   set page(numbering: "1")
+  // Mirror LaTeX template's default secnumdepth=2: chapter (level 1),
+  // section (level 2), and subsection (level 3) are numbered;
+  // subsubsection (level 4) and below are not.
   set heading(
-    numbering: (..nums) => nums
-      .pos()
-      .map(str)
-      .join(".")
+    numbering: (..nums) => {
+      if nums.pos().len() > 3 {
+        return
+      }
+      nums.pos().map(str).join(".")
+    }
   )
 
   body

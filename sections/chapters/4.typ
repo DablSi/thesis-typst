@@ -1,370 +1,136 @@
-= Implementation
+= Methodology
 
-This chapter describes the implemented system corresponding to the design presented in Chapter 3. The implementation integrates parser-based legacy data handling, formal schedule configuration, CP-SAT optimization, and a web-based interactive assistant for timetable editing, validation, and analysis.
+This section describes the models, dataset, methods, selection criteria, and evaluation metrics.
 
-== Implementation Stack and Repositories
+== Models
 
-The implementation is distributed across three codebases:
+The evaluation uses two open-source instruction-tuned models: *DeepSeek-Coder-6.7B-Instruct* @deepseek-coder and *Qwen2.5-Coder-7B-Instruct* @qwen-coder. Both are ~7-billion-parameter models trained on code corpora and fine-tuned for instruction following. Two models of similar size were chosen to control for parameter count while testing whether results generalise across model families. They differ in training data and chat template format. Base model variants were tried first but did not consistently recognise the task as code completion.
 
-- *Schedule assistant optimizer* (`schedule-assistant`): Python-based formal model, solver execution, and verification checks.
-- *Schedule platform backend/frontend* (`schedule-builder-backend`, `schedule-builder-frontend`): data extraction, compatibility checks, Outlook integration, and service orchestration.
-- *Interactive web UI* (`website`): settings and timetable workspaces for operational users.
+== Dataset
 
-Core technologies:
+All experiments use *HumanEval* \@humaneval, a benchmark of 164 Python programming problems. Each problem consists of a function signature with type annotations, a docstring with example input-output pairs, and a hidden unit test suite. The model receives only the stub (signature and docstring) and must generate the function body. Correctness is determined by running the completion against the unit tests.
 
-- Backend:
-  - Python + uv,
-  - FastAPI,
-  - Microsoft Outlook for room-booking integration via exchangelib.
-- Optimizer:
-  - Python + uv,
-  - Google OR-Tools CP-SAT #footnote[https://developers.google.com/optimization],
-  - httpx.
-- Frontend:
-  - React + Vite,
-  - TanStack Query, Tanstack Router,
-  - TailwindCSS,
-  - DaisyUI,
-  - Yjs,
-  - Valtio
+The prompt wraps the stub in a fenced Python block with an instruction to complete it without modifying the given code, following DeepSeek's HumanEval protocol @deepseek-coder:
 
-== Data Pipeline Implementation
+#block(fill: luma(245), inset: 12pt, radius: 4pt, width: 100%)[`Please continue to complete the function. You are not allowed to modify the given code and do the completion only. Please return all completed function in a codeblock. Here is the given code to do completion:`
 
-#heading(level: 3, numbering: none, outlined: false)[From heterogeneous spreadsheets to formal configuration]
+\`\`\`python
 
-The initial timetable source was a highly irregular Google Spreadsheet with many merged semantics, variable sections, and mixed manual conventions.
+{code}
+
+\`\`\`]
+
+== Uncertainty Estimation Methods
+
+Standard UQ methods from natural language generation transfer poorly to code: text-similarity and token-probability approaches show no significant correlation with code correctness @sharma2025assessingcorrectnessllmbasedcode. The evaluation therefore pairs the best-performing lm-polygraph @lm-polygraph2025 methods with execution-based methods that assess behaviour directly.
+
+Thirteen uncertainty scores are evaluated in total: nine from the *lm-polygraph* framework and four from two execution-based approaches, each producing two scores from the same cluster structure. @method_summary summarises them.
 
 #figure(
-  image("../../figures/core-courses-timetable-spreadsheet.png", width: 100%),
-  caption: [Example of the original spreadsheet layout used by timetable planners before formal model integration.]
-)
+  table(
+    columns: (auto, auto, auto, auto, auto),
+    align: (left, center, center, center, center),
+    table.header(
+      [*Method*], [*Category*], [*Access*], [*Compute*], [*Aux. Model*]
+    ),
+    [MSP],                    [Information-Theoretic], [White-box], [Low],  [No],
+    [Perplexity],             [Information-Theoretic], [White-box], [Low],  [No],
+    [LexSim ROUGE-L],         [Sample Diversity],      [Black-box], [High], [No],
+    [LexSim BLEU],            [Sample Diversity],      [Black-box], [High], [No],
+    [DegMat Jaccard],         [Sample Diversity],      [Black-box], [High], [No],
+    [CCP],                    [Information-Theoretic], [White-box], [High], [DeBERTa],
+    [SAR],                    [Sample Diversity],      [White-box], [High], [DeBERTa],
+    [TokenSAR],               [Information-Theoretic], [White-box], [High], [DeBERTa],
+    [DegMat NLI],             [Sample Diversity],      [Black-box], [High], [DeBERTa],
+    [Functional Clustering],  [Execution-based],       [Black-box], [High], [No],
+    [Symbolic Clustering],    [Execution-based],       [Black-box], [High], [CrossHair],
+  ),
+  caption: [Summary of evaluated methods. All sample diversity and execution-based methods require $N = 10$ stochastic completions. "Compute" reflects cost relative to a single greedy pass. Functional and symbolic clustering each produce two scores (CC and SE).]
+) <method_summary>
+
+=== Method Selection
+
+The nine lm-polygraph methods were chosen by ranking all unsupervised estimators in the framework by mean PRR across two models (Stable LM 2 12B and Mistral 7B v0.2) in the original benchmark @lm-polygraph2025. The top ten by mean PRR were MSP, CCP, SAR, HUQ-MD, ROUGE-L, DegMat NLI, Perplexity, DegMat Jaccard, BLEU, and TokenSAR. HUQ-MD was excluded because it is supervised: it requires a reference distribution of correct examples to compute Mahalanobis distances. The remaining nine span the information-based and sample-diversity categories. Reflexive methods did not reach the top ten.
+
+The remaining methods are grouped below by whether they require an auxiliary NLI model. The first group (MSP, Perplexity, Lexical Similarity, DegMat-Jaccard) operates directly on tokens and token probabilities. The second group (CCP, SAR, TokenSAR, DegMat-NLI) additionally uses DeBERTa for semantic agreement. The execution-based methods form a third group.
+
+=== Token-Level Methods
+
+These methods use only token-level log-probabilities from a single greedy pass and $N = 10$ stochastic samples. No auxiliary model is required.
+
+*Maximum Sequence Probability (MSP)* is the product of the greedy token probabilities:
+$ "MSP" = exp lr(( sum_t log p(x_t | x_{<t}, c) )) $
+where $c$ is the prompt and $t$ indexes generated tokens. Higher MSP means higher per-token confidence and lower uncertainty.
+
+*Perplexity* normalises MSP by sequence length so scores are comparable across outputs of different length:
+$ "PPL" = exp lr(( -1/T sum_t log p(x_t | x_{<t}, c) )) $
+Higher perplexity indicates higher uncertainty.
+
+*Lexical Similarity* methods measure consistency across samples. The mean overlap between the greedy completion and each of the $N$ stochastic samples is computed using ROUGE-L \@rouge (longest common subsequence recall) and separately using BLEU \@bleu (n-gram precision). A model that generates diverse completions for the same problem is considered more uncertain than one whose completions are consistent.
+
+*Degree Matrix-Jaccard (DegMat-Jaccard)* measures consistency across all pairs of samples rather than against the greedy output. A graph is constructed with one node per sample and edge weights given by the Jaccard similarity of the two samples' token sets. The uncertainty score is derived from the spectral properties of the graph's degree matrix @lin2024generatingconfidenceuncertaintyquantification: similar completions give low spectral spread, diverse ones give high.
+
+=== NLI-Augmented Methods
+
+These methods additionally pass pairs of completions through DeBERTa \@deberta, a bidirectional transformer trained on natural language inference (NLI). Given two texts, it outputs probabilities for entailment, neutrality, and contradiction. Entailment probability serves as a proxy for semantic agreement between completions — an approximation when applied to code, but richer than token overlap.
+
+*Claim-Conditioned Probability (CCP)* \@ccp re-weights the greedy token probabilities using NLI entailment scores from the sampled alternatives. If many samples are semantically consistent with the greedy completion, its token probabilities are upweighted, lowering the uncertainty estimate.
+
+*SAR (Semantic Answer Replacement)* \@sar measures how sensitive the greedy output is to token substitution. For each token, semantically equivalent alternatives from the sampled completions are identified using DeBERTa, and the change in sequence probability from the substitution is recorded. Tokens whose replacement barely shifts probability are less informative; load-bearing tokens shift it more. High average sensitivity indicates higher uncertainty.
+
+*TokenSAR* \@sar uses the same per-token sensitivities as SAR but weights each by its contribution to the overall sequence probability before aggregation.
+
+*Degree Matrix—NLI (DegMat-NLI)* applies the same graph-based framework as DegMat-Jaccard but uses NLI entailment probability as the edge weight instead of Jaccard token overlap @lin2024generatingconfidenceuncertaintyquantification, capturing semantic rather than surface agreement.
+
+=== Execution-Based Methods
+
+Functional clustering and symbolic clustering use neither token probabilities nor text similarity. Instead, they generate $N = 10$ stochastic completions per problem and group them by whether they produce the same behaviour when executed. The assumption: a model producing behaviourally equivalent completions is more likely to be correct than one whose completions diverge.
+
+Each method partitions the $N$ completions into equivalence classes, from which two uncertainty scores are computed. *Cluster Count (CC)* is:
+$ u_"CC" = 1 - (|C_"max"|) / N $
+where $|C_"max"|$ is the size of the largest class. CC is zero when all completions are equivalent and approaches one when every completion is in its own class.
+
+*Semantic Entropy (SE)* is the Shannon entropy of the cluster size distribution under a uniform prior:
+$ u_"SE" = -sum_c (|c|)/N * log (|c|)/N $
+SE is zero when all completions fall in one cluster and is maximised when they spread evenly across many. @sharma2025assessingcorrectnessllmbasedcode shows that CC and SE produce comparable results when clustering is accurate — the aggregation formula matters less than the quality of the equivalence relation. Both are reported for direct comparison.
+
+@sharma2025assessingcorrectnessllmbasedcode also proposes Mutual Information (MI), which queries the model twice per problem with the second prompt formed by appending the first response to the original. MI is excluded here because its two-call inference setup produces structurally different completions, which would make pass\@1 incomparable across methods.
+
+The two execution-based methods use the same CC and SE formulas and differ only in how equivalence is determined.
+
+*Functional Clustering*
+
+Proposed by @Ravuri2025EliminatingHE, this method determines equivalence by running each completion on concrete test inputs and grouping completions that produce identical outputs on every input. Test inputs are generated by prompting the LLM itself given only the function signature, so the method is self-contained and works on benchmarks without ground-truth tests.
+
+The limitation is that equivalence is tested only on a finite set of inputs. Two functions that agree on every provided input but differ elsewhere will be incorrectly merged, underestimating uncertainty.
+
+*Symbolic Clustering*
+
+Proposed by @sharma2025assessingcorrectnessllmbasedcode, this method determines equivalence using symbolic execution rather than concrete inputs. The goal is to find a counterexample — a concrete input on which two functions differ — by reasoning over all possible inputs at once.
+
+This is done using CrossHair \@crosshair, a Python symbolic execution engine backed by an SMT solver. For each of the $N(N-1)/2$ pairs of completions, CrossHair explores both functions' execution paths with symbolic inputs and asks whether any input assignment causes them to diverge. If one is found, the pair goes into separate clusters. If no counterexample is found before the timeout, the functions are declared equivalent and merged via union-find, which ensures transitivity: if $f_i equiv f_j$ and $f_j equiv f_k$, all three are placed in the same cluster.
+
+@sharma2025assessingcorrectnessllmbasedcode reports Pearson correlations of $r = -0.40$ to $-0.56$ ($p < 0.001$) between symbolic-cluster-based uncertainty and correctness, while all NLP-based clustering methods in the same study produced correlations that were not statistically significant.
+
+The limitation is that symbolic execution is bounded: CrossHair explores paths only up to a configurable depth. Functions equivalent at shallow depth but diverging at deeper paths may be incorrectly merged.
+
+== Evaluation Metrics
+
+Each method produces a scalar uncertainty score $u_i in RR$ and a binary correctness label $c_i in {0, 1}$ per problem, where $c_i = 1$ if the greedy completion passes all unit tests. Three metrics are reported.
+
+*Pass\@1* is the fraction of problems solved:
+$ "pass@1" = 1/M sum_(i=1)^M c_i, quad M = 164 $
+All methods share the same greedy completion, so pass\@1 is identical across all thirteen scores for a given model. It characterises model capability rather than uncertainty estimation quality.
+
+*Prediction Rejection Ratio (PRR)* @malinin2017prr measures how well uncertainty scores identify incorrect predictions. Problems are ranked by decreasing uncertainty and progressively withheld; at each threshold, accuracy is computed on the remaining ones. PRR is the area between this curve and the random-rejection baseline (a horizontal line at pass\@1), normalised by the area between the oracle curve (which rejects all incorrect predictions first) and the same baseline:
+
+$ "PRR" = ("AUC"_"uq" - "AUC"_"random") / ("AUC"_"oracle" - "AUC"_"random") $
+
+PRR = 1 means perfect failure identification; PRR = 0 means random ranking. @prr illustrates the relationship between these curves.
 
 #figure(
-  image("../../figures/core-courses-timetable-spreadsheet-large-view.png", width: 100%),
-  caption: [Large-view fragment of the weekly core-courses spreadsheet used in manual planning workflow.]
-)
-
-To operationalize optimization, the data pipeline was implemented in two steps:
-
-1. parse spreadsheet structures into normalized machine-readable objects;
-2. map normalized objects into a structured CB-CTT data model.
-
-This conversion made scheduling constraints explicit and checkable, replacing implicit spreadsheet semantics.
-
-#heading(level: 3, numbering: none, outlined: false)[Conflict-checking plugin during migration]
-
-A spreadsheet plugin was implemented as an intermediate migration step before the final assistant UI. It checked teacher occupancy, room occupancy, and structural inconsistencies directly in the spreadsheet workflow and returned actionable feedback to planners.
-
-#figure(
-  image("../../figures/spreadsheet-plugin-input-token.png", width: 100%),
-  caption: [Authentication and run flow of the spreadsheet conflict-checking plugin.]
-)
-
-#figure(
-  image("../../figures/spreadsheet-plugin-conflicts-capacity-exceeded.png", width: 100%),
-  caption: [Conflict output example: room capacity exceeded.]
-)
-
-#figure(
-  image("../../figures/spreadshett-plugin-conflicts-teacher-is-busy.png", width: 100%),
-  caption: [Conflict output example: instructor overlap.]
-)
-
-#figure(
-  image("../../figures/spreadsheet-plugin-room-conflicts-go-to-cell.png", width: 100%),
-  caption: [Conflict output with direct navigation back to source cells.]
-)
-
-This plugin stage reduced migration risk in three ways:
-
-- it provided immediate conflict detection in the legacy environment;
-- it validated parser outputs against real operational spreadsheet data;
-- it revealed practical limits of further development inside Google Sheets (complex parsing, limited interaction model, constrained extensibility).
-
-For these reasons, the final implementation moved to a dedicated integrated assistant instead of extending spreadsheet tooling.
-
-== Optimizer Implementation
-
-#heading(level: 3, numbering: none, outlined: false)[Curriculum-Based model and domain entities]
-
-The optimizer accepts a structured model with strict validation rules. Implemented entities include:
-
-- term with date interval, weekdays, and slot starts;
-- rooms and capacities;
-- instructors;
-- programs/tracks and group selectors;
-- student groups with estimated/enumerated membership;
-- courses with component-level requirements.
-
-For instructors, the configuration includes preference windows used as soft penalties in optimization. Preference penalties are priority-weighted by instructor role, so violations for critical instructors can be penalized more strongly than violations for lower-priority roles.
-
-The model supports:
-
-- shared and per-group meetings;
-- direct group IDs and selector expansion (`@program`, `@program/track`);
-- instructor pools and co-teaching options;
-- explicit `per_week` teaching frequency;
-- component relations (`relates_to`) for ordering and coupling preferences.
-
-This flexibility covers real curriculum patterns: core triplets (lecture/tutorial/lab), English groups, elective buckets, and mixed audience classes.
-
-Illustrative configuration fragment:
-
-```yaml
-courses:
-  - id: calculus
-    components:
-      - kind: lecture
-        groups: "@BS_Y1_EN"
-        per_week: 1
-      - kind: lab
-        groups: "@BS_Y1_EN"
-        per_group: true
-        per_week: 1
-        instructors: ["ta_pool_a", "ta_pool_b"]
-        relates_to:
-          - kind: lecture
-            relation: after
-```
-
-#heading(level: 3, numbering: none, outlined: false)[Meeting expansion and decision model]
-
-The solver transforms course components into concrete meeting instances over the planning horizon. For each meeting, the model creates variables for:
-
-- day index,
-- local slot index and absolute timeline index,
-- room selection,
-- instructor option.
-
-Table-level mapping between design and implementation:
-
-- `x_(m,d,t,r,i)` - assignment decision for meeting/date-slot/room/instructor alternative - binary;
-- `int_room_(m,r)` - optional room interval activated by room choice - interval;
-- `int_inst_(m,i)` - optional instructor interval activated by instructor choice - interval;
-- `y_(m,d,t)` - selected temporal placement - binary.
-
-Resource usage is represented via interval variables and optional intervals for room/instructor alternatives. Hard no-overlap constraints are applied to:
-
-- each student group,
-- each shared student (for cross-group memberships),
-- each room,
-- each instructor.
-
-In the reference weekly solve, instructor and room availability are not enforced as hard constraints. These constraints are handled later at calendar-level adaptation, where date/week conflicts are diagnosed and resolved in user-driven workflow with optional solver assistance.
-For dual-role persons (instructor and student), the model also enforces no-overlap between their teaching assignments and their own student timetable.
-
-Overlap detection is interval-based and therefore also captures partial overlaps between heterogeneous slot grids (for example, 12:10-13:40 intersecting 12:40-14:10), not only identical slot labels. This direct interval modeling ensures strict feasibility before optimization quality is considered.
-
-#heading(level: 3, numbering: none, outlined: false)[Room-capacity handling]
-
-Room feasibility is implemented with practical fallback logic:
-
-- default: room must fit expected attendance;
-- if full fit is unavailable or attendance is large, a thresholded fallback is allowed;
-- strong penalties discourage oversized rooms.
-
-This mechanism avoids frequent infeasibility in real institutional datasets while still prioritizing appropriate room assignment.
-
-#heading(level: 3, numbering: none, outlined: false)[Multi-phase objective solving]
-
-The CP-SAT solve is implemented as a multi-phase process:
-
-- phase 1: pedagogical structure quality (ordering, adjacency/coherence),
-- phase 2: timetable comfort and resource quality.
-
-In phase 2, instructor preferences are optimized as soft terms together with timetable comfort terms (late slots, Saturday load, and distribution quality). Instructor-preference penalties are scaled by priority weights. Date-specific availability is handled in the post-generation adaptation flow, not in the weekly reference solve. After each phase, the achieved objective value is fixed as a bound for subsequent phases. The solver also stores hints from the previous phase, improving continuity and practical runtime behavior.
-
-Solver logs are persisted per phase and included in run artifacts, enabling post-hoc audit.
-
-#heading(level: 3, numbering: none, outlined: false)[Output artifacts]
-
-Each solve run writes a timestamped result directory containing:
-
-- `output.yaml` with schedule payload,
-- phase log files,
-- status and structured statistics.
-
-This design makes experiments reproducible and supports external analysis scripts.
-
-== Verification Checks and Validation Implementation
-
-The implemented validation module computes verification outputs from both configuration and solution data. It reports:
-
-- hard conflict list and count;
-- unmet required meeting counts;
-- lecture-tutorial adjacency and same-day coherence checks;
-- order violations (lab before tutorial, tutorial before lecture, etc.);
-- room overflow and room oversize checks;
-- workload checks (groups, instructors, weekdays, late slots, Saturdays);
-- instructor preference checks (scheduled in preferred vs non-preferred slots);
-- dual-role conflict checks (teaching vs own student attendance overlaps);
-- room usage checks (time utilization, capacity utilization, room swaps);
-- room-feature compatibility checks (capacity plus required equipment/layout constraints);
-- support for external booking consistency checks from Outlook provider data (including room-booking conflicts and large-event room occupancy windows), with conflict-resolution actions on concrete dates/weeks.
-
-This validation layer is used both as a debugging instrument and as an acceptance dashboard for schedulers.
-
-In operational workflow, Outlook is treated as booking/conflict provider and synchronization endpoint, not as an internal optimization source model. The assistant supports one-click booking synchronization for approved timetable events (with instructor identity in booking payload), which reduces manual communication failures.
-
-Operational governance is supported in the workflow layer: changes can be routed through curator-owned streams, and booking actions can include delegated-flow steps for rooms with restricted booking permissions.
-
-== Booking Integration Implementation
-
-Booking integration is implemented as a separate workflow component connected to the scheduling assistant. It consumes room-booking provider data for conflict checks and writes synchronized reservations for approved timetable events.
-
-The implementation supports:
-
-- provider-side room occupancy lookup for conflict verification;
-- one-click booking synchronization from timetable updates;
-- instructor identity in booking metadata for operational communication;
-- delegated booking handoff for restricted rooms;
-- post-sync consistency checks to ensure timetable and bookings remain aligned.
-
-The room-booking service and APIs are already available in the university ecosystem and are used as integration target for this feature.
-
-== Interactive Assistant Frontend Implementation
-
-#heading(level: 3, numbering: none, outlined: false)[Main workspace structure]
-
-The web UI implements three user-visible workspaces:
-
-- timetable,
-- settings,
-- checks.
-
-Settings and timetable workspaces are fully implemented and integrated with configuration/schedule state.
-
-#heading(level: 3, numbering: none, outlined: false)[Settings workspace]
-
-The settings module provides dedicated tabs for:
-
-- courses,
-- programs and student groups,
-- instructors,
-- rooms,
-- semester/global settings.
-
-It includes:
-
-- consistency-aware selection state,
-- keyboard-friendly clearing/navigation behavior,
-- sidebar context panel,
-- config and output loading flow.
-
-Design justification in operational terms:
-
-- hierarchical programs/groups editor reduces ambiguity in audience definition;
-- dedicated component editor makes course constraints explicit and auditable;
-- sidebar context panel reduces cross-screen lookup during edits;
-- stable tab separation reduces accidental mixing of unrelated configuration concerns.
-
-#figure(
-  image("../../figures/schedule-assistant-settings-general.png", width: 100%),
-  caption: [General settings interface used to define term slot grid, active weekdays, and scheduling horizon.]
-)
-
-#figure(
-  image("../../figures/schedule-assistant-settings-groups.png", width: 100%),
-  caption: [Programs/groups editor supporting hierarchical audience definition and selector-based modeling.]
-)
-
-#figure(
-  image("../../figures/schedule-assistant-settings-courses.png", width: 100%),
-  caption: [Courses/components editor used to encode per-week requirements, shared/per-group meetings, and component relations.]
-)
-
-#figure(
-  image("../../figures/schedule-assistant-settings-rooms.png", width: 100%),
-  caption: [Room settings editor used to maintain capacity and room-constraint metadata for feasibility checks.]
-)
-
-#heading(level: 3, numbering: none, outlined: false)[Timetable workspace]
-
-The timetable workspace implements:
-
-- weekly navigation over computed date ranges,
-- core/English/group-centric and resource-centric (room/instructor) views,
-- merged-card rendering for repeated meetings in one cell,
-- visual connectors for pedagogically related back-to-back sessions,
-- dynamic highlighting for selected meetings, groups, programs, rooms, and instructors,
-- a computed detail panel with contextual statistics and drill-down links.
-
-Design justification in operational terms:
-
-- room/instructor-centric views support targeted conflict investigation;
-- merged-card rendering improves readability in dense timetable cells;
-- contextual detail panel reduces manual reconstruction of local constraints;
-- highlight and connectors support fast inspection of related sessions.
-
-#figure(
-  image("../../figures/schedule-assistant-timetable.png", width: 100%),
-  caption: [Timetable workspace used for conflict inspection, view switching, and contextual diagnostics in weekly maintenance workflow.]
-)
-
-The view model computes normalized meetings, columns, room/group utilization labels, and per-cell signatures to keep rendering stable and responsive for large schedules.
-
-== Operational Workflow Implementation
-
-The implemented end-to-end workflow is:
-
-1. edit configuration in settings (artifact: validated config snapshot);
-2. run solve via backend-worker orchestration (artifact: solve task and phase logs);
-3. inspect generated schedule in timetable workspace (artifact: schedule draft);
-4. run checks and review diagnostics (artifact: checks report);
-5. apply user adjustments and rerun if needed (artifact: revised schedule draft);
-6. synchronize approved events to booking provider (artifact: booking updates + sync status);
-7. approve operational schedule version for use.
-
-User intervention is possible after configuration edits, after first draft inspection, and after checks review.
-
-In practice, this loop also handles late updates: when curriculum plans, instructor windows, or elective assignments change, users manually adjust affected parts of the calendar with checks support and optional solver-assisted suggestions.
-
-This loop supports both initial schedule generation and iterative maintenance after disturbances.
-
-== Implementation of Acceptance Criteria
-
-The implemented system evaluates generated schedules using explicit criteria:
-
-- *feasibility criteria*: zero hard conflicts and zero unmet required meetings;
-- *pedagogical criteria*: number of ordering violations and continuity coverage statistics;
-- *operational criteria*: room-capacity overflow count, room-usage and overload indicators (late slots, Saturdays, weekday concentration);
-- *maintenance criteria*: controlled change scope relative to accepted baseline schedule, supported by diagnostics and optional solver suggestions;
-- *runtime criteria*: solve time and diagnostics completeness for representative scenarios;
-- *usability criteria*: direct manipulation and transparent diagnostics in UI.
-
-The criteria are auditable from run artifacts and verification outputs, which makes schedule quality discussion with planners evidence-based rather than subjective.
-
-== Practical Outcome
-
-The practical outcome can be stated as a concrete before/after transformation.
-
-- *Before implementation:* scheduling relied on Google Sheets, ad hoc scripts, and manual Outlook conflict checks.
-- *After implementation:* one integrated assistant combines a structured CB-CTT model, optimization, validation checks, and booking-aware workflow.
-
-Newly enabled capabilities:
-
-- reproducible validation reports and structured run artifacts;
-- integrated diagnostics for conflicts and quality issues;
-- calendar-aware maintenance with user-controlled edits and solver-assisted local repair;
-- one-click booking synchronization for approved updates.
-
-Out of scope at current stage:
-
-- sports scheduling;
-- full SIS integration across all educational processes;
-- fully automated end-user notification pipeline.
-
-== Implementation Limitations
-
-The implemented system has practical boundaries that should be considered in deployment:
-
-- weekly reference solve abstracts some date-specific availability to adaptation stage;
-- room-feature inventories can be incomplete or outdated, affecting strict feature feasibility;
-- booking flows depend on external provider availability and permissions;
-- current data model and workflows are tailored to Innopolis operational context;
-- selected governance processes remain curator/operator-mediated rather than fully automated;
-- full SIS-level integration and fully automatic stakeholder notifications are out of scope, yet the system is designed to be easily extensible for future integrations.
-
-== Chapter Summary
-
-This chapter presented the concrete engineering implementation of the proposed assistant across the data pipeline, optimization engine, verification subsystem, and interactive web UI. The implemented system supports Curriculum-Based Course Timetabling (CB-CTT) modeling, conflict-safe optimization, transparent validation checks, and practical human-in-the-loop editing. Together, these components realize the design objective of reliable timetable maintenance under real educational constraints.
+  image("../../figures/prr.png", width: 60%),
+  caption: [Prediction-Rejection Ratio (PRR) Curve @lm-polygraph2025],
+) <prr>
+
+*PR-AUC* is the area under the precision-recall curve, treating failures ($c_i = 0$) as the positive class and uncertainty as the detection score. Precision is the fraction of flagged predictions that are incorrect; recall is the fraction of all incorrect predictions that are flagged. PR-AUC aggregates this trade-off across all thresholds and is especially relevant when failures are rare, as happens at high pass\@1.

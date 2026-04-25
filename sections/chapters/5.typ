@@ -1,64 +1,42 @@
-= Conclusion
+= Experimental Design
 
-This thesis addressed an operationally important problem in educational timetabling: not only generating a feasible timetable, but maintaining it under continuous disturbances after publication. The work was grounded in real scheduling practice at Innopolis University and focused on integrating optimization, validation, and human-controlled editing into one workflow.
+== Setup
 
-The central result is an implemented interactive assistant that supports both baseline timetable construction and post-publication adaptation. Instead of treating scheduling as a one-shot optimization task, the system treats timetable lifecycle management as a sequence of decisions: prepare structured institutional data, generate a stable weekly baseline, inspect conflicts and quality indicators, apply local calendar-level edits, and synchronize approved changes with room-booking operations.
+=== Inference
 
-== Main Results
+All inference runs on a single A100 GPU using vLLM \@vllm with eager execution, `bfloat16` precision, and CUDA graph compilation disabled. vLLM is initialised at 65% GPU memory utilisation, leaving room for DeBERTa in the same process.
 
-The thesis achieved the engineering objectives defined in Chapter 1 and implemented in Chapters 3-4.
+Fair comparison across the nine lm-polygraph estimators required care. An earlier design ran Group 1 and Group 2 in separate processes at 85% and 65% memory utilisation, which caused ~5% of greedy completions to differ between groups. The cause is not random floating-point error: `gpu_memory_utilization` controls the size of the KV cache, which determines how attention is chunked, which in turn changes floating-point operation ordering and produces different logits. The resulting pass\@1 gap confounds PRR and PR-AUC, since both metrics are sensitive to the fraction of correct predictions.
 
-First, a practical Curriculum-Based Course Timetabling (CB-CTT) model was implemented with explicit hard constraints and phase-based soft optimization. The model supports mixed audience structures (shared and per-group classes), selector-driven group expansion, co-teaching alternatives, and dual-role conflict checks for users who are both instructors and students.
+To avoid this, both groups run in one model instance at 65% utilisation. Greedy decoding happens once per problem; all estimators read the resulting token sequence from a shared dependency dictionary. The four execution-based scores adopt the same greedy completion via a `--greedy-file` argument, so all thirteen uncertainty scores share identical pass\@1 by construction.
 
-Second, a two-stage planning approach was operationalized. Stage A builds a stable weekly reference structure; Stage B supports user-driven calendar adaptation with diagnostics and optional solver-assisted local repair. This reflects how scheduling is actually performed in universities: planners reason in reusable weekly patterns, but execute changes on concrete dates under dynamic disturbances.
+=== Prompt Construction
 
-Third, a verification layer was integrated as a first-class component of the workflow. The checks subsystem reports conflicts, required-meeting violations, ordering/coherence issues, room-capacity risks, workload imbalance, and booking consistency problems. This makes acceptance of timetable versions evidence-based and transparent.
+Each HumanEval stub is wrapped in a task instruction adapted from the DeepSeek-Coder evaluation protocol \@deepseek-coder-eval and passed through each model's native chat template via `tokenizer.apply_chat_template` (DeepSeek uses `### Instruction / ### Response` delimiters, Qwen uses ChatML). The model is asked to return the completed function in a fenced code block; the body is extracted by stripping the fence markers and the echoed stub prefix.
 
-Fourth, the system was integrated with existing institutional practices. Legacy Google Sheets data can be migrated through parser and normalization steps; Outlook-based room booking is used for conflict detection and synchronization of approved changes. This integration focus addresses a key barrier to adoption identified in prior studies @oude-vrielink2019 @Kingston2013.
+=== Sampling
 
-== Scientific and Practical Contribution
+Each problem receives one greedy completion and $N = 10$ stochastic completions at temperature 1.0. These samples are reused by every method: lm-polygraph methods read them from a `_samples.jsonl` file written during inference, and the clustering methods use the same file (prepending the HumanEval stub to reconstruct complete function definitions). No additional model calls are needed for either clustering approach.
 
-The contribution of this thesis is not a new standalone optimization algorithm. The contribution is an implementable architecture and workflow for timetable maintenance in real institutions, where optimization quality, user control, and operational integration must coexist.
+== Functional Clustering
 
-From a research perspective, the thesis strengthens the argument that post-publication maintenance is central, not peripheral, to timetabling practice @veenstra2016 @Lindahl2018. From an engineering perspective, it demonstrates that a CB-CTT-based solver can be embedded into a user-centered platform with explicit diagnostics and booking-aware operations.
+Test inputs are generated per problem by prompting the same model on the function signature and docstring alone, following @Ravuri2025EliminatingHE. The response is parsed as a JSON array of parameter-to-value dictionaries.
 
-In practical terms, the developed assistant replaces fragmented tooling (spreadsheets, ad hoc scripts, manual booking checks) with a coherent process that supports:
+The reference implementation for HumanEval deviated from this design: it extracted inputs from the dataset's built-in `assert candidate(...)` statements — the same inputs used by `evaluate_functional_correctness` — which gave the method access to the evaluation criterion. This evaluation restores the paper's design by using only LLM-generated inputs.
 
-- reproducible solve artifacts and logs;
-- transparent conflict and quality diagnostics;
-- controlled human-in-the-loop timetable adaptation;
-- faster synchronization between timetable decisions and room-booking state.
+Each body-only sample is prepended with the original stub to form a complete function, then run on each input with a one-second timeout enforced via `func_timeout`. Two completions are merged only if they produce the same output on every input; any completion that raises an exception or times out on any input is placed in an isolated cluster. The completion written to the output file is the greedy completion from the shared lm-polygraph run, converted back to body-only format.
 
-== Limitations
+== Symbolic Clustering
 
-Several limitations remain and should be considered when interpreting results.
+For each problem, all $N(N-1)/2 = 45$ pairs of completions are checked using CrossHair's `diffbehavior` command \@crosshair. Each pair is written to a temporary Python module with the two functions renamed to `fn_a` and `fn_b`:
 
-The current implementation is tailored to one institutional context, including local governance and booking practices. While the core approach is transferable, broader deployment may require adaptation of data models, policy rules, and integration endpoints.
+```
+python -m crosshair diffbehavior cmp_module.fn_a cmp_module.fn_b \
+    --per_condition_timeout=10 --per_path_timeout=10
+```
 
-The evaluation context is a relatively small university (around 2,000 students). Larger institutions can be 10x bigger and significantly more complex (multi-campus operations, multi-department coordination, heterogeneous policies), so additional scaling and governance adaptations are expected for such settings.
+If CrossHair finds a concrete counterexample, the pair goes to separate clusters; no output means no counterexample was found within the timeout, and the pair is merged via union-find. Two edge cases are handled explicitly: syntactically invalid functions are placed in isolated clusters rather than merged by default, and pairs exceeding a hard wall-clock limit (three times the per-condition timeout) are treated as equivalent, consistent with the bounded-search guarantee. With 45 pairs across 164 problems, the total is 7,380 CrossHair calls per model.
 
-Weekly baseline optimization and calendar-level adaptation are intentionally separated. This improves operational control, but also means some date-specific constraints are handled later in the workflow instead of in one monolithic solve.
+== Evaluation Protocol
 
-Data quality remains a practical dependency: late curriculum updates, incomplete room-feature inventories, and evolving instructor availability can reduce planning stability regardless of solver quality.
-
-Finally, the assistant currently supports decision-making and synchronization but does not fully automate all communication and SIS-level institutional processes end-to-end.
-
-== Future Work
-
-Future development should focus on strengthening both model capability and operational integration.
-
-At the optimization level, future work can extend perturbation metrics for Stage B and evaluate alternative neighborhood search or repair strategies for faster local adaptation under strict stability guarantees.
-
-At the workflow level, further integration with Student Information Systems and notification channels can reduce manual coordination overhead and improve traceability of approved changes.
-
-The same workflow can also be adopted in simpler educational contexts, such as schools and colleges, where constraints are usually less heterogeneous but transparency, conflict checks, and controllable edits remain critical.
-
-At the evaluation level, multi-institution studies with standardized datasets and operational KPIs are needed to quantify transferability, usability impact, and long-term adoption outcomes. Such studies would complement algorithmic benchmarking by measuring real deployment success.
-
-At the AI-support level, LLM-based assistants could be explored for explainable recommendations, conflict triage, and what-if scenario guidance, while preserving hard-constraint guarantees and user authority over final decisions.
-
-== Final Remarks
-
-Educational timetable management is fundamentally a socio-technical process: computationally hard, operationally dynamic, and organizationally constrained. This thesis shows that useful progress comes from combining formal optimization with transparent checks, user-centered interaction, and workflow-native integration.
-
-The resulting system demonstrates a practical path from academic timetabling methods to deployable institutional tooling. By unifying CB-CTT modeling, iterative maintenance support, and booking-aware operations in one assistant, the work contributes a concrete foundation for reliable timetable management under real educational constraints.
+Functional correctness is assessed with `evaluate_functional_correctness` from the HumanEval release \@humaneval. Because this harness executes arbitrary model-generated code, it runs inside a Docker container with `--network none` to block outbound network access from generated programs. Each of the thirteen output files is evaluated independently, producing a `_results.jsonl` with a `passed` field per problem. PRR and PR-AUC are computed from the paired (uncertainty, correctness) vectors.

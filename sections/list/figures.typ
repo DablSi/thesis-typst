@@ -1,4 +1,4 @@
 #outline(
   title: [List of Figures],
-  target: figure.where(kind: "figure")
+  target: figure.where(kind: image)
 )

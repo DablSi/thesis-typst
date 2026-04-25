@@ -1,19 +1,18 @@
 #let info = (
   topic: [
-    Интерактивный помощник по редактированию и оптимизации расписания в образовательных учреждениях /
-    Interactive Assistant for Timetable Editing and Optimization in Educational Institutions
+    Надёжный код: сравнительный анализ методов оценки неопределённости для кодовых LLM /
+    Code You Can Trust: Benchmarking Uncertainty Quantification Methods for Code LLMs
   ],
   student: [
-    Руслан Бельков /
-    Ruslan Belkov
+    Софья Ткаченко /
+    Sofia Tkachenko
   ],
   supervisor: [
-    Алексей Потёмкин /
-    Alexey Potyomkin
+    Владимир Иванов /
+    Vladimir Ivanov
   ],
   consultants: [
-    Александр Гасников /
-    Alexander Gasnikov
+
   ],
 )
 
@@ -46,12 +45,12 @@ Field of Study \
 
   #text(lang: "ru")[
 Направленность (профиль) образовательной программы \
-"Информатика и вычислительная техника"
+"Анализ данных и искусственный интеллект"
   ]
 
   #text(lang: "en")[
 Area of Specialization / Academic Program Title: \
-"Computer Science"
+"Data Analysis and Artificial Intelligence"
   ]
 ])
 
