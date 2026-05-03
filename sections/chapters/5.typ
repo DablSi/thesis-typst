@@ -6,7 +6,7 @@
 
 All inference runs on a single A100 GPU using vLLM \@vllm with eager execution, `bfloat16` precision, and CUDA graph compilation disabled. vLLM is initialised at 65% GPU memory utilisation, leaving room for DeBERTa in the same process.
 
-Fair comparison across the nine lm-polygraph estimators required care. An earlier design ran Group 1 and Group 2 in separate processes at 85% and 65% memory utilisation, which caused ~5% of greedy completions to differ between groups. The cause is not random floating-point error: `gpu_memory_utilization` controls the size of the KV cache, which determines how attention is chunked, which in turn changes floating-point operation ordering and produces different logits. The resulting pass\@1 gap confounds PRR and PR-AUC, since both metrics are sensitive to the fraction of correct predictions.
+Fair comparison across the nine lm-polygraph estimators required care. An earlier design ran Group 1 and Group 2 in separate processes at 85% and 65% memory utilisation, which caused ~5% of greedy completions to differ between groups. The cause is not random floating-point error: `gpu_memory_utilization` controls the size of the KV cache, which determines how attention is chunked, which in turn changes floating-point operation ordering and produces different logits. The resulting pass\@1 gap confounds PR-AUC and PRR, since both metrics are sensitive to the fraction of correct predictions.
 
 To avoid this, both groups run in one model instance at 65% utilisation. Greedy decoding happens once per problem; all estimators read the resulting token sequence from a shared dependency dictionary. The four execution-based scores adopt the same greedy completion via a `--greedy-file` argument, so all thirteen uncertainty scores share identical pass\@1 by construction.
 
@@ -22,7 +22,7 @@ Each problem receives one greedy completion and $N = 10$ stochastic completions 
 
 Test inputs are generated per problem by prompting the same model on the function signature and docstring alone, following @Ravuri2025EliminatingHE. The response is parsed as a JSON array of parameter-to-value dictionaries.
 
-The reference implementation for HumanEval deviated from this design: it extracted inputs from the dataset's built-in `assert candidate(...)` statements — the same inputs used by `evaluate_functional_correctness` — which gave the method access to the evaluation criterion. This evaluation restores the paper's design by using only LLM-generated inputs.
+The reference implementation for HumanEval deviated from this design: it extracted inputs from the dataset's built-in `assert candidate(...)` statements (the same inputs used by `evaluate_functional_correctness`), which gave the method access to the evaluation criterion. This evaluation restores the paper's design by using only LLM-generated inputs.
 
 Each body-only sample is prepended with the original stub to form a complete function, then run on each input with a one-second timeout enforced via `func_timeout`. Two completions are merged only if they produce the same output on every input; any completion that raises an exception or times out on any input is placed in an isolated cluster. The completion written to the output file is the greedy completion from the shared lm-polygraph run, converted back to body-only format.
 
@@ -39,4 +39,4 @@ If CrossHair finds a concrete counterexample, the pair goes to separate clusters
 
 == Evaluation Protocol
 
-Functional correctness is assessed with `evaluate_functional_correctness` from the HumanEval release \@humaneval. Because this harness executes arbitrary model-generated code, it runs inside a Docker container with `--network none` to block outbound network access from generated programs. Each of the thirteen output files is evaluated independently, producing a `_results.jsonl` with a `passed` field per problem. PRR and PR-AUC are computed from the paired (uncertainty, correctness) vectors.
+Functional correctness is assessed with `evaluate_functional_correctness` from the HumanEval release \@humaneval. Because this harness executes arbitrary model-generated code, it runs inside a Docker container with `--network none` to block outbound network access from generated programs. Each of the thirteen output files is evaluated independently, producing a `_results.jsonl` with a `passed` field per problem. PR-AUC and PRR are computed from the paired (uncertainty, correctness) vectors.

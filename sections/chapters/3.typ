@@ -2,12 +2,12 @@
 
 == UQ Method Categories
 
-The LM-Polygraph benchmark @lm-polygraph2025 evaluates 39 UQ methods on natural language generation and organises them into four categories:
+The LM-Polygraph benchmark @lm-polygraph2025 evaluates 29 UQ methods on natural language generation and organises them into four categories:
 
-- *Information-Theoretic:* These methods use principles from information theory to measure uncertainty directly from the model's internal probability distributions. Common techniques are: Maximum Sequence Probability, Perplexity, and Mean Token Entropy @Fomicheva.
-- *Sample Diversity:* These methods operate by generating multiple outputs for the same prompt and analyzing their diversity. The core assumption is that a confident model will produce consistent, semantically similar answers, while an uncertain one will generate varied and divergent responses. Examples include Semantic Entropy @kuhn2023semanticuncertaintylinguisticinvariances, Degree Matrix, and Sum of Eigenvalues of the Graph Laplacian @lin2024generatingconfidenceuncertaintyquantification.
-- *Density-based:* These methods compare a generated output to a reference distribution of correct examples. An output is considered uncertain or hallucinatory if its embedding is far from this reference distribution in a high-dimensional space. Examples are Mahalanobis distance (MD) @lee2018simpleunifiedframeworkdetecting and Robust density estimation (RDE) @yoo-etal-2022-detection.
-- *Reflexive:* This category includes methods that prompt the model to self-evaluate its own uncertainty. This is often done by asking the model directly about its confidence (i.e. "Are you certain about your last response?"). The $p("True")$ method @kadavath2022languagemodelsmostlyknow is an example of this approach.
+- *Information-Theoretic:* compute uncertainty from the model's token-level probability distribution. Examples include Maximum Sequence Probability, Perplexity, and Mean Token Entropy @Fomicheva.
+- *Sample Diversity:* generate multiple completions for the same prompt and measure their disagreement. Consistent outputs indicate higher confidence. Examples include Semantic Entropy @kuhn2023semanticuncertaintylinguisticinvariances, Degree Matrix, and Sum of Eigenvalues of the Graph Laplacian @lin2024generatingconfidenceuncertaintyquantification.
+- *Density-based:* compare a generated output's embedding against a reference distribution of correct examples. Outputs far from the distribution are flagged as uncertain. Examples are Mahalanobis distance (MD) @lee2018simpleunifiedframeworkdetecting and Robust density estimation (RDE) @yoo-etal-2022-detection.
+- *Reflexive:* ask the model to evaluate its own confidence directly (e.g. "Are you certain about your last response?"). The $p("True")$ method @kadavath2022languagemodelsmostlyknow is an example.
 
 Each category comes with its strengths and weaknesses (according to @lm-polygraph2025):
 
@@ -44,7 +44,7 @@ Each category comes with its strengths and weaknesses (according to @lm-polygrap
     [Simple to implement],
     [Highly unreliable: models are often overconfident and poor at self-assessment],
   ),
-  caption: [Comparative Analysis of Uncertainty Quantification Method Categories],
+  caption: [Comparison of Uncertainty Quantification Method Categories],
 )<uq_taxonomy>
 
 == Code Hallucination Taxonomies
@@ -58,8 +58,6 @@ Several recent works classify what goes wrong when LLMs generate code. Each prop
 *CodeHalu* @tian2025codehaluinvestigatingcodehallucinations focuses on the source of the error. Mapping hallucinations occur when the model incorrectly maps between the problem description and code variables or functions. Naming hallucinations use wrong identifiers. Resource hallucinations reference libraries or functions that do not exist. Logic hallucinations contain flawed algorithmic reasoning. These four categories are further divided into eight subcategories and verified by executing the generated code.
 
 These taxonomies overlap but emphasise different aspects of the same underlying problem. @hallucination_taxonomy combines them into a unified overview:
-
-#text(red)[TODO: Add Collu-Bench @jiang2024collubenchbenchmarkpredictinglanguage discussion if relevant.]
 
 #figure(
   table(
@@ -99,7 +97,7 @@ These taxonomies overlap but emphasise different aspects of the same underlying 
     ],
     [The code misuses variables, external APIs, or libraries, or calls non-existent resources, leading to errors or security flaws.],
   ),
-  caption: [Combined Code Hallucination Taxonomy],
+  caption: [Code Hallucination Taxonomy],
 )<hallucination_taxonomy>
 
 As @hallucination_taxonomy shows, code hallucinations are specific to the code domain. Methods from natural language generation (NLG) cannot be directly applied to code without adaptation.
@@ -111,17 +109,10 @@ Measuring UQ performance is a challenge in itself. Some of the approaches used i
 - Rank correlation (i.e. Spearman's \ρ) between uncertainty scores and output quality metrics such as ROUGE or BLEU @Fomicheva @compareUQmetrics. This says little about practical performance, and n-gram metrics often miss semantic quality.
 - Binary classification (correct vs. incorrect output) evaluated with AUROC or PR-AUC @lm-polygraph2025 @ling-etal-2024-uncertainty @compareUQmetrics. This requires an arbitrary correctness threshold, making cross-study comparison difficult.
 
-This thesis uses the Prediction Rejection Ratio (PRR) @malinin2017prr as its primary metric @lm-polygraph2025 @malinin2021uncertainty, along with PR-AUC. Different UQ methods produce scores on incompatible scales (e.g. MSP is bounded while Perplexity is not). PRR is scale-invariant: it measures how well a method's uncertainty ranking separates correct outputs from incorrect ones, normalised against a random baseline and an oracle that perfectly identifies all failures.
-
-#text(red)[TODO: Add more about PR-AUC]
+This thesis uses both PR-AUC and the Prediction Rejection Ratio (PRR) @malinin2017prr, with PR-AUC as the primary metric. PRR is the standard in lm-polygraph @lm-polygraph2025 and earlier work @malinin2021uncertainty. Both are defined in @evaluation_metrics.
 
 
 == Uncertainty Quantification for Code
-
-// #text(red)[TODO: Check papers in DM with Ivanov]
-#text(red)[TODO: Add about supervised papers from Georgy]
-
-Researchers are adapting UQ methods for code LLMs and developing new code-specific approaches.
 
 UnCert-CoT @zhu2025uncertaintyguidedchainofthoughtcodegeneration uses token entropy to switch from direct generation to Chain-of-Thought reasoning when uncertainty is high. AdaDec @he2025adadec uses token-level entropy to pause decoding and rerank candidate tokens.
 
@@ -129,7 +120,7 @@ Token-level signals often fail for code because syntactically different programs
 
 Ravuri and Amarasinghe @Ravuri2025EliminatingHE propose _Functional Clustering_. They argue that text embeddings miss small errors, like a swapped operator, that break code. Their method generates programs and test inputs, runs them in a sandbox, and groups programs with identical input-output behaviour. The size of the largest group is the confidence score. On LiveCodeBench, this reduced error rates from ~65% to 2%, while token-probability scores could not reliably separate correct from incorrect outputs.
 
-Sharma and David @sharma2025assessingcorrectnessllmbasedcode propose _Symbolic Clustering_, which goes beyond unit tests. Their method uses symbolic execution to treat inputs as abstract symbols and generate traces of the code's logic, grouping programs whose traces match. Testing several standard UQ approaches on code, they found Pearson correlations with correctness near zero: text-similarity methods reached $r = -0.04$ to $-0.21$ (all $p > 0.08$), and token log-probabilities $r = 0.09$ to $0.18$ ($p > 0.38$) — none statistically significant. Only symbolic clustering achieved meaningful correlations ($r = -0.40$ to $-0.56$, $p < 0.001$), with a false positive rate below 0.02%.
+Sharma and David @sharma2025assessingcorrectnessllmbasedcode propose _Symbolic Clustering_, which goes beyond unit tests. Their method uses symbolic execution to treat inputs as abstract symbols and generate traces of the code's logic, grouping programs whose traces match. Testing several standard UQ approaches on code, they found Pearson correlations with correctness near zero: text-similarity methods reached $r = -0.04$ to $-0.21$ (all $p > 0.08$), and token log-probabilities $r = 0.09$ to $0.18$ ($p > 0.38$), none statistically significant. Only symbolic clustering achieved meaningful correlations ($r = -0.40$ to $-0.56$, $p < 0.001$), with a false positive rate below 0.02%.
 
 Both @Ravuri2025EliminatingHE and @sharma2025assessingcorrectnessllmbasedcode are sample-diversity methods like Semantic Entropy @kuhn2023semanticuncertaintylinguisticinvariances, and are therefore computationally expensive.
 

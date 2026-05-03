@@ -1,0 +1,19 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Model: deepseek-ai/deepseek-coder-1.3b-instruct
+────────────────────────────────────────────────────────────
+  Metric                              PRR    PR-AUC    Pass%
+────────────────────────────────────────────────────────────
+  LexicalSimilarity_rougeL         0.6784    0.7131   50.6%
+  DegMat_Jaccard                   0.6545    0.6849   50.6%
+  LexicalSimilarity_BLEU           0.6538    0.6537   50.6%
+  SAR                              0.6468    0.6800   50.6%
+  symbolic_clustering_se           0.6452    0.5970   50.6%
+  ClaimConditionedProbability      0.6446    0.7128   50.6%
+  symbolic_clustering_cc           0.6438    0.5943   50.6%
+  MaximumSequenceProbability       0.6260    0.6872   50.6%
+  TokenSAR                         0.6220    0.6383   50.6%
+  Perplexity                       0.6172    0.6384   50.6%
+  DegMat_NLI_entail                0.5417    0.5398   50.6%
+  functional_clustering_cc         0.4804    0.5659   50.6%
+  functional_clustering_se         0.4801    0.5689   50.6%
+────────────────────────────────────────────────────────────

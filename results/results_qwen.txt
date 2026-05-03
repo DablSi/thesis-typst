@@ -1,0 +1,21 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Model: qwen
+────────────────────────────────────────────────────────────
+  Metric                              PRR    PR-AUC    Pass%
+────────────────────────────────────────────────────────────
+  MaximumSequenceProbability       0.8586    0.5570   72.6%
+  ClaimConditionedProbability      0.8581    0.6433   72.6%
+  symbolic_clustering_se           0.8460    0.4268   72.6%
+  symbolic_clustering_cc           0.8455    0.4083   72.6%
+  Perplexity                       0.8402    0.4521   72.6%
+  TokenSAR                         0.8399    0.4483   72.6%
+  functional_clustering_se         0.8359    0.4004   72.6%
+  functional_clustering_cc         0.8352    0.3905   72.6%
+  LexicalSimilarity_BLEU           0.8182    0.4566   72.6%
+  LexicalSimilarity_rougeL         0.8180    0.4800   72.6%
+  DegMat_Jaccard                   0.8138    0.4421   72.6%
+  SAR                              0.7996    0.4368   72.6%
+  DegMat_NLI_entail                0.7971    0.3968   72.6%
+────────────────────────────────────────────────────────────
+
+pass@1=0.7530   pass@10=0.9573

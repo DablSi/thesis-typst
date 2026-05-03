@@ -1,10 +1,8 @@
 = Methodology
 
-This section describes the models, dataset, methods, selection criteria, and evaluation metrics.
-
 == Models
 
-The evaluation uses two open-source instruction-tuned models: *DeepSeek-Coder-6.7B-Instruct* @deepseek-coder and *Qwen2.5-Coder-7B-Instruct* @qwen-coder. Both are ~7-billion-parameter models trained on code corpora and fine-tuned for instruction following. Two models of similar size were chosen to control for parameter count while testing whether results generalise across model families. They differ in training data and chat template format. Base model variants were tried first but did not consistently recognise the task as code completion.
+The evaluation uses three open-source instruction-tuned models: *DeepSeek-Coder-1.3B-Instruct*, *DeepSeek-Coder-6.7B-Instruct* @deepseek-coder, and *Qwen2.5-Coder-7B-Instruct* @qwen-coder. The two larger models are ~7-billion-parameter models trained on code corpora and fine-tuned for instruction following. The DeepSeek-1.3B variant enables comparison of model size effects within the same architecture. Across the larger models, the focus is on controlling for parameter count while testing whether results generalise across model families; they differ in training data and chat template format. Base model variants were tried first but did not consistently recognise the task as code completion.
 
 == Dataset
 
@@ -21,6 +19,8 @@ The prompt wraps the stub in a fenced Python block with an instruction to comple
 \`\`\`]
 
 == Uncertainty Estimation Methods
+
+This evaluation covers only unsupervised methods, which produce uncertainty scores without any labelled calibration data. Supervised methods, such as those that fit a reference distribution of correct examples, are excluded.
 
 Standard UQ methods from natural language generation transfer poorly to code: text-similarity and token-probability approaches show no significant correlation with code correctness @sharma2025assessingcorrectnessllmbasedcode. The evaluation therefore pairs the best-performing lm-polygraph @lm-polygraph2025 methods with execution-based methods that assess behaviour directly.
 
@@ -45,7 +45,7 @@ Thirteen uncertainty scores are evaluated in total: nine from the *lm-polygraph*
     [Functional Clustering],  [Execution-based],       [Black-box], [High], [No],
     [Symbolic Clustering],    [Execution-based],       [Black-box], [High], [CrossHair],
   ),
-  caption: [Summary of evaluated methods. All sample diversity and execution-based methods require $N = 10$ stochastic completions. "Compute" reflects cost relative to a single greedy pass. Functional and symbolic clustering each produce two scores (CC and SE).]
+  caption: [Summary of evaluated methods. All methods except MSP and Perplexity use $N = 10$ stochastic completions. "Compute" reflects cost relative to a single greedy pass. Functional and symbolic clustering each produce two scores (CC and SE).]
 ) <method_summary>
 
 === Method Selection
@@ -72,7 +72,7 @@ Higher perplexity indicates higher uncertainty.
 
 === NLI-Augmented Methods
 
-These methods additionally pass pairs of completions through DeBERTa \@deberta, a bidirectional transformer trained on natural language inference (NLI). Given two texts, it outputs probabilities for entailment, neutrality, and contradiction. Entailment probability serves as a proxy for semantic agreement between completions — an approximation when applied to code, but richer than token overlap.
+These methods additionally pass pairs of completions through DeBERTa \@deberta, a bidirectional transformer trained on natural language inference (NLI). Given two texts, it outputs probabilities for entailment, neutrality, and contradiction. Entailment probability serves as a proxy for semantic agreement between completions: an approximation when applied to code, but richer than token overlap.
 
 *Claim-Conditioned Probability (CCP)* \@ccp re-weights the greedy token probabilities using NLI entailment scores from the sampled alternatives. If many samples are semantically consistent with the greedy completion, its token probabilities are upweighted, lowering the uncertainty estimate.
 
@@ -80,7 +80,7 @@ These methods additionally pass pairs of completions through DeBERTa \@deberta, 
 
 *TokenSAR* \@sar uses the same per-token sensitivities as SAR but weights each by its contribution to the overall sequence probability before aggregation.
 
-*Degree Matrix—NLI (DegMat-NLI)* applies the same graph-based framework as DegMat-Jaccard but uses NLI entailment probability as the edge weight instead of Jaccard token overlap @lin2024generatingconfidenceuncertaintyquantification, capturing semantic rather than surface agreement.
+*Degree Matrix-NLI (DegMat-NLI)* applies the same graph-based framework as DegMat-Jaccard but uses NLI entailment probability as the edge weight instead of Jaccard token overlap @lin2024generatingconfidenceuncertaintyquantification, capturing semantic rather than surface agreement.
 
 === Execution-Based Methods
 
@@ -92,7 +92,7 @@ where $|C_"max"|$ is the size of the largest class. CC is zero when all completi
 
 *Semantic Entropy (SE)* is the Shannon entropy of the cluster size distribution under a uniform prior:
 $ u_"SE" = -sum_c (|c|)/N * log (|c|)/N $
-SE is zero when all completions fall in one cluster and is maximised when they spread evenly across many. @sharma2025assessingcorrectnessllmbasedcode shows that CC and SE produce comparable results when clustering is accurate — the aggregation formula matters less than the quality of the equivalence relation. Both are reported for direct comparison.
+SE is zero when all completions fall in one cluster and is maximised when they spread evenly across many. @sharma2025assessingcorrectnessllmbasedcode shows that CC and SE produce comparable results when clustering is accurate: the aggregation formula matters less than the quality of the equivalence relation. Both are reported for direct comparison.
 
 @sharma2025assessingcorrectnessllmbasedcode also proposes Mutual Information (MI), which queries the model twice per problem with the second prompt formed by appending the first response to the original. MI is excluded here because its two-call inference setup produces structurally different completions, which would make pass\@1 incomparable across methods.
 
@@ -106,15 +106,13 @@ The limitation is that equivalence is tested only on a finite set of inputs. Two
 
 *Symbolic Clustering*
 
-Proposed by @sharma2025assessingcorrectnessllmbasedcode, this method determines equivalence using symbolic execution rather than concrete inputs. The goal is to find a counterexample — a concrete input on which two functions differ — by reasoning over all possible inputs at once.
+Proposed by @sharma2025assessingcorrectnessllmbasedcode, this method determines equivalence using symbolic execution rather than concrete inputs. The goal is to find a counterexample (a concrete input on which two functions differ) by reasoning over all possible inputs at once.
 
 This is done using CrossHair \@crosshair, a Python symbolic execution engine backed by an SMT solver. For each of the $N(N-1)/2$ pairs of completions, CrossHair explores both functions' execution paths with symbolic inputs and asks whether any input assignment causes them to diverge. If one is found, the pair goes into separate clusters. If no counterexample is found before the timeout, the functions are declared equivalent and merged via union-find, which ensures transitivity: if $f_i equiv f_j$ and $f_j equiv f_k$, all three are placed in the same cluster.
 
-@sharma2025assessingcorrectnessllmbasedcode reports Pearson correlations of $r = -0.40$ to $-0.56$ ($p < 0.001$) between symbolic-cluster-based uncertainty and correctness, while all NLP-based clustering methods in the same study produced correlations that were not statistically significant.
-
 The limitation is that symbolic execution is bounded: CrossHair explores paths only up to a configurable depth. Functions equivalent at shallow depth but diverging at deeper paths may be incorrectly merged.
 
-== Evaluation Metrics
+== Evaluation Metrics <evaluation_metrics>
 
 Each method produces a scalar uncertainty score $u_i in RR$ and a binary correctness label $c_i in {0, 1}$ per problem, where $c_i = 1$ if the greedy completion passes all unit tests. Three metrics are reported.
 
@@ -130,7 +128,11 @@ PRR = 1 means perfect failure identification; PRR = 0 means random ranking. @prr
 
 #figure(
   image("../../figures/prr.png", width: 60%),
-  caption: [Prediction-Rejection Ratio (PRR) Curve @lm-polygraph2025],
+  caption: [Prediction-rejection curve schematic: oracle, uncertainty estimator, and random baseline @lm-polygraph2025.],
 ) <prr>
 
-*PR-AUC* is the area under the precision-recall curve, treating failures ($c_i = 0$) as the positive class and uncertainty as the detection score. Precision is the fraction of flagged predictions that are incorrect; recall is the fraction of all incorrect predictions that are flagged. PR-AUC aggregates this trade-off across all thresholds and is especially relevant when failures are rare, as happens at high pass\@1.
+*PR-AUC* is the area under the precision-recall curve, treating failures ($c_i = 0$) as the positive class and uncertainty as the detection score. Precision is the fraction of flagged predictions that are incorrect; recall is the fraction of all incorrect predictions that are flagged. PR-AUC aggregates this trade-off across all thresholds.
+
+PR-AUC is the primary metric of this thesis. The intended use of code UQ is a threshold decision: a generated function is flagged for review or accepted. PR-AUC measures the precision-recall trade-off at every threshold, while PRR measures the full ranking of problems by uncertainty, independent of any specific threshold. With pass\@1 of 0.689 and 0.726, failures are the minority class, where PR-AUC is preferred over ROC-based measures.
+
+PRR is reported alongside because it is the standard metric in lm-polygraph @lm-polygraph2025 and most natural-language UQ work, and because it is scale-invariant against pass\@1 differences across models. The two metrics can disagree: methods with coarse uncertainty scores (those taking only a few distinct values, as in cluster-based methods where the score is determined by cluster count or size) can score high on PR-AUC while ranking lower on PRR. @metric_disagreement examines this divergence.
