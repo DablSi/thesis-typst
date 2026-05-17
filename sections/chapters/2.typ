@@ -2,9 +2,9 @@
 
 == Hallucinations
 
-Ji _et al._ @Ji_2023 defined hallucinations as "generated content that is nonsensical or unfaithful to the provided source content". LLMs are prone to hallucinations because they are trained to predict the next most probable token. Training rewards plausible output for any prompt, even when the model lacks the information to answer correctly. If the model answers "I don't know" or produces an incomplete answer, it is penalized during training. As a result, the model learns to produce a complete answer regardless of confidence, leading to hallucinations.
+Ji _et al._ @Ji_2023 defined hallucinations as "generated content that is nonsensical or unfaithful to the provided source content". LLMs are prone to hallucinations because they predict the next most probable token. Training rewards plausible output for any prompt, even when the model lacks the necessary information. The model is penalized if it says "I don't know" or gives an incomplete answer. As a result, the model learns to produce complete answers regardless of confidence, leading to hallucinations.
 
-There are also other sources of hallucinations. The model's knowledge is a compressed representation of its training data, and reconstruction from compressed patterns introduces errors and false associations. On the other hand, the training data itself can contain factual errors, outdated content, and contradictions, which the model can reproduce.
+The model's knowledge is a compressed representation of its training data. Reconstruction from compressed patterns introduces errors and false associations. Additionally, the training data itself can contain factual errors, outdated information, and contradictions, which the model can reproduce.
 
 
 Code generation has its own hallucination problems. CodeMirage @agarwal2025codemiragehallucinationscodegenerated, HalluCode @liu2024HalluCode, CodeHalu @tian2025codehaluinvestigatingcodehallucinations, and Collu-Bench @jiang2024collubenchbenchmarkpredictinglanguage show that LLMs frequently generate plausible-looking code with defects that are hard to detect: logical flaws, security vulnerabilities, unreachable code, or calls to non-existent libraries and functions @agarwal2025codemiragehallucinationscodegenerated.
@@ -16,7 +16,7 @@ There are two related concepts that are important for understanding and addressi
 - _Uncertainty_ is a property of the input. Given a prompt $x$, the model's predicted distribution $P(Y|X=x)$ may be spread over many possible outputs or concentrated on a few. A vague prompt like "write a sort function" has many valid implementations, so the distribution is wide. A more precise prompt like "write a function that returns the sum of two integers" leaves less room for variation. Uncertainty depends on $x$ only, not on any particular output @lin2024generatingconfidenceuncertaintyquantification.
 - _Confidence_ is a property of a specific prediction. Given input $x$ and a generated output $y$, confidence measures how likely $y$ is to be correct. A model can be uncertain about a prompt (many possible outputs) while still being confident in the one it chose @lin2024generatingconfidenceuncertaintyquantification.
 
-However, in literature, the terms "uncertainty" and "confidence" are often used interchangeably. Often uncertainty is measured for each generated output, which is technically confidence. This thesis uses "uncertainty" to refer to the model's confidence in its output, following common usage in the field. As well as converts confidence scores to uncertainty scores by inverting them ($"uncertainty"=1-"confidence"$) for consistency with lm-polygraph.
+However, in practice, researchers often use "uncertainty" and "confidence" interchangeably. When measuring uncertainty for each generated output, the measurement is technically confidence. This thesis uses "uncertainty" to refer to the model's confidence in its output, following common usage. The thesis also converts confidence scores to uncertainty scores by inverting them ($"uncertainty"=1-"confidence"$) for consistency with lm-polygraph.
 
 === Types of Uncertainty
 

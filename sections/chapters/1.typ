@@ -12,9 +12,9 @@ Large Language Models (LLMs) are now widely used to generate code. The Stack Ove
   caption: [Developer Trust in AI Accuracy (2023-2025) @stackoverflow_survey],
 ) <stack2>
 
-Developers are relying more on tools they trust less. The root cause for distrust is LLM hallucinations: models produce plausible but incorrect code. Uncertainty Quantification (UQ) methods can detect when a model is likely wrong, flagging suspicious outputs before they reach production. Nonetheless, most existing UQ methods were developed for natural language generation and do not transfer well to code. Recent studies @sharma2025assessingcorrectnessllmbasedcode @Ravuri2025EliminatingHE show that standard text-similarity and token-probability methods have no statistically significant correlation with code correctness, while methods that run the generated programs perform far better. More about this finding is discussed in the Literature Review.
+Developers are relying more on tools they trust less. The root cause is LLM hallucinations: models produce plausible but incorrect code. Uncertainty Quantification (UQ) methods can detect when a model is likely wrong and flag suspicious outputs before they reach production. However, most existing UQ methods were developed for natural language generation and do not transfer well to code. Recent studies @sharma2025assessingcorrectnessllmbasedcode @Ravuri2025EliminatingHE show that standard text-similarity and token-probability methods have no statistically significant correlation with code correctness. In contrast, methods that run the generated programs perform far better. More about this finding is discussed in the Literature Review.
 
-For natural language tasks, like question answering, UQ methods are already compared systematically through the LM-Polygraph benchmark @lm-polygraph2025. Currently there is no such benchmark for code. Moreover, research in code UQ is mostly incomparable: different studies use different models, tasks, and metrics.
+For natural language tasks like question answering, UQ methods are compared systematically through the LM-Polygraph benchmark @Vashurin_2025. Currently, no such benchmark exists for code. Moreover, code UQ research is mostly uncomparable: different studies use different models, tasks, and metrics.
 
 This thesis aims to fill that gap with two objectives:
 
