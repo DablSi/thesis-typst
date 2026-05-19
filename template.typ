@@ -1,138 +1,76 @@
 #let template(body) = {
   set cite(style: "ieee.csl")
   set bibliography(style: "ieee.csl")
+
   set text(
     size: 14pt,
     lang: "en",
-    top-edge: 0.7em,
-    bottom-edge: -0.3em,
-    // Match LaTeX template's \usepackage{tempora}; fall back to Liberation Serif
-    // if the bundled Tempora .otf files are not installed.
     font: "Times New Roman",
   )
+
   set par(
-    leading: 0.7em,
+    leading: 1em,
     justify: true,
-    // Match LaTeX template's \setlength{\parindent}{2em} at 14pt.
-    first-line-indent: (
-      amount: 1cm,
-    ),
+    first-line-indent: (amount: 1.25cm, all: true),
   )
-  set list(
-    marker: [•],
-    indent: 1.1em,
-    body-indent: 0.55em,
-    spacing: 0.55em,
-  )
+
+  set list(marker: [•], indent: 1.25cm, body-indent: 0.5em, spacing: 1em)
+  set enum(indent: 1.25cm, body-indent: 0.5em, spacing: 1em)
   show list: it => {
-    set par(
-      leading: 0.48em,
-      first-line-indent: (
-        amount: 0cm,
-        all: false,
-      ),
-    )
+    set par(leading: 1em, first-line-indent: (amount: 0cm, all: false))
     it
   }
-  set enum(
-    indent: 1.1em,
-    body-indent: 0.55em,
-    spacing: 0.55em,
-  )
+  show enum: it => {
+    set par(leading: 1em, first-line-indent: (amount: 0cm, all: false))
+    it
+  }
+
   set page(
     "a4",
-    margin: (
-      left: 2.5cm,
-      top: 2cm,
-      right: 2cm,
-      bottom: 2cm
-    ),
-    footer: context {},
+    margin: (left: 2.5cm, top: 1in + 2cm, right: 2cm, bottom: 2cm),
+    // header-ascent: 1cm,
+    footer: none,
     header: context {
-      set par(
-        first-line-indent: (
-          amount: 0cm,
-        ),
-      )
+      set par(first-line-indent: (amount: 0cm))
 
-      let headings-before = query(selector(heading.where(level: 2)).before(here()))
+      let chapter-start = query(selector(heading.where(level: 1)))
+        .filter(h => here().page() == h.location().page()).len() > 0
+      if chapter-start { return }
 
-      let headings-on-page-top = query(selector(heading.where(level: 2)))
-        .filter(h =>
-          here().page() == h.location().page() and
-          h.location().position().y < 5cm
-        )
+      let bib = query(selector(bibliography))
+      let in-bib = bib.len() > 0 and bib.first().location().page() < here().page()
 
-      if headings-before.len() == 0 and headings-on-page-top.len() == 0 {
-        return
-      }
-
-      let current = if headings-on-page-top.len() > 0 {
-        headings-on-page-top.first()
+      let label = if in-bib {
+        [Bibliography]
       } else {
-        headings-before.last()
+        let before = query(selector(heading.where(level: 2)).before(here()))
+        let on-top = query(selector(heading.where(level: 2)))
+          .filter(h =>
+            here().page() == h.location().page() and
+            h.location().position().y < 5cm)
+        if before.len() == 0 and on-top.len() == 0 { return }
+
+        let current = if on-top.len() > 0 { on-top.first() } else { before.last() }
+        let num = counter(heading).at(current.location()).map(str).join(".")
+        [#num #current.body]
       }
 
-      if counter(heading).get() == (0,) {
-        return
-      }
-
-      let is-chapter-begin = query(selector(heading.where(level: 1)))
-        .filter(h1 => here().page() == h1.location().page()).len() > 0
-
-      if is-chapter-begin {
-        return
-      }
-
-      
-      let current-number = counter(heading)
-        .at(current.location())
-        .map(str)
-        .join(".")
-
-      strong(current-number + " " + current.body)
-      h(1fr)
-      strong[#counter(page).display("1")]
-
-      line(length: 100%)
-
-    }
+      pad(left: 0.5em, right: 0.5em)[
+        #strong(label)
+        #h(1fr)
+        #strong[#counter(page).display("1")]
+      ]
+      v(0.2em)
+      line(length: 100%, stroke: 0.5pt)
+    },
   )
 
-  show heading.where(level: 2): it => {
-    set text(size: 1.3em)
-    
-    it
-
-    v(.5cm)
-  }
-  show heading.where(level: 3): it => {
-    set text(size: 1.25em)
-    
-    it
-
-    v(.2cm)
-  }
-  
   show heading.where(level: 1): it => {
     pagebreak(weak: true)
-
-    // Reset image figure counter at the start of each chapter so that figures
-    // are numbered "1.1, 1.2" within Chapter 1, "2.1, 2.2" within Chapter 2, etc.
-    // Mirrors LaTeX's \counterwithin{figure}{chapter}.
     counter(figure.where(kind: image)).update(0)
-
-    set par(
-      leading: 1em,
-      first-line-indent: (
-        amount: 0cm,
-        all: false,
-      ),
-    )
-
+    set par(leading: 1em, first-line-indent: (amount: 0cm, all: false))
     set text(size: 1.5em)
-
-    v(2.5cm)
+    v(2cm)
     if it.numbering != none {
       [
         Chapter #counter(heading).display()
@@ -141,33 +79,29 @@
         #text(size: 1.2em, it.body)
       ]
     } else { it }
-
     v(0.5cm)
   }
-  
+  show heading.where(level: 2): it => {
+    set text(size: 1.3em)
+    it
+    v(.5cm)
+  }
+  show heading.where(level: 3): it => {
+    set text(size: 1.25em)
+    it
+    v(.2cm)
+  }
+
   set math.equation(numbering: "(1)")
 
   set ref(supplement: it => {
-    if it.func() == heading {
-      "Chapter"
-    } else {
-      it.supplement
-    } 
+    if it.func() == heading { "Chapter" } else { it.supplement }
   })
-  
   show ref: it => {
-    let eq = math.equation
     let el = it.element
-    if el != none and el.func() == eq {
-      // Override equation references.
-      numbering(
-        el.numbering,
-        ..counter(eq).at(el.location())
-      )
-    } else {
-      // Other references as usual.
-      it
-    }
+    if el != none and el.func() == math.equation {
+      numbering(el.numbering, ..counter(math.equation).at(el.location()))
+    } else { it }
   }
 
   show figure: set block(breakable: true)
@@ -181,7 +115,6 @@
       TABLE #it.counter.display("1") \
       #it.caption.body
     ]
-
     align(center, it.body)
   }
   show figure.where(kind: image): set figure(supplement: "Fig.")
@@ -194,7 +127,7 @@
     set align(left)
     it
   }
-  
+
   set outline(indent: auto)
 
   show raw.where(block: true): block.with(
@@ -204,23 +137,14 @@
     stroke: 1pt,
   )
 
-
   body
 }
 
 #let numbering(body) = {
   set page(numbering: "1")
-  // Mirror LaTeX template's default secnumdepth=2: chapter (level 1),
-  // section (level 2), and subsection (level 3) are numbered;
-  // subsubsection (level 4) and below are not.
-  set heading(
-    numbering: (..nums) => {
-      if nums.pos().len() > 3 {
-        return
-      }
-      nums.pos().map(str).join(".")
-    }
-  )
-
+  set heading(numbering: (..nums) => {
+    if nums.pos().len() > 3 { return }
+    nums.pos().map(str).join(".")
+  })
   body
 }
