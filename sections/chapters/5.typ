@@ -4,9 +4,9 @@
 
 === Inference
 
-All inference runs on a single A100 GPU using vLLM @vllm with eager execution, `bfloat16` precision, and CUDA graph compilation disabled (to make it compatible with lm-poligraph). vLLM is initialised at 65% GPU memory utilisation, leaving room for DeBERTa in the same process.
+All inference runs on a single A100 GPU using vLLM @vllm with eager execution, `bfloat16` precision, and CUDA graph compilation disabled (to make it compatible with LM-Polygraph). vLLM is initialised at 65% GPU memory utilisation, leaving room for DeBERTa in the same process.
 
-Fair comparison across the nine lm-polygraph estimators requires careful design. My earlier design ran Non-NLI and NLI methods in separate processes at 85% and 65% memory utilization (to speed up non-NLI), which caused ~5% of greedy completions to differ between groups, despite temperature 1. The cause was not random floating point error: `gpu_memory_utilization` controls the size of the KV cache, which determines how attention is chunked. This in turn changes floating point operation ordering and produces different logits. Also, on different runs, even with the same utilization, floating point errors tend to accumulate differently. The resulting pass\@1 gap affects PR-AUC and PRR because both metrics depend on the fraction of correct predictions, making results hard to compare across runs.
+Fair comparison across the nine LM-Polygraph estimators requires careful design. My earlier design ran Non-NLI and NLI methods in separate processes at 85% and 65% memory utilization (to speed up non-NLI), which caused ~5% of greedy completions to differ between groups, despite temperature 1. The cause was not random floating point error: `gpu_memory_utilization` controls the size of the KV cache, which determines how attention is chunked. This in turn changes floating point operation ordering and produces different logits. Also, on different runs, even with the same utilization, floating point errors tend to accumulate differently. The resulting pass\@1 gap affects PR-AUC and PRR because both metrics depend on the fraction of correct predictions, making results hard to compare across runs.
 
 To avoid this, both groups run in one model instance at 65% utilisation. Greedy decoding happens once per problem, and all estimators read the resulting token sequence from a shared dependency dictionary. The four execution-based scores adopt the same greedy completion via a `--greedy-file` argument, so all thirteen uncertainty scores share identical pass\@1 by construction.
 
@@ -16,7 +16,7 @@ Each HumanEval stub is wrapped in a task instruction adapted from the DeepSeek-C
 
 === Sampling
 
-Each problem receives one greedy completion and $N = 10$ stochastic completions at temperature 1.0. These samples are reused by every method: lm-polygraph methods read them from a `samples.jsonl` file written during inference, and the clustering methods use the same file (with the HumanEval stub to reconstruct complete function definitions). No additional model calls are needed for either clustering approach.
+Each problem receives one greedy completion and $N = 10$ stochastic completions at temperature 1.0. These samples are reused by every method: LM-Polygraph methods read them from a `samples.jsonl` file written during inference, and the clustering methods use the same file (with the HumanEval stub to reconstruct complete function definitions). No additional model calls are needed for either clustering approach.
 
 == Functional Clustering
 
@@ -24,7 +24,7 @@ Test inputs are generated per problem by prompting the same model on the functio
 
 The reference implementation by @Ravuri2025EliminatingHE departs from this protocol on HumanEval: it extracts test inputs from the dataset's built-in `assert candidate(...)` statements instead of generating them. These are the same inputs that `evaluate_functional_correctness` uses to score correctness. This means the method observes the evaluation criterion, while every other UQ method in this comparison does not. I restored the paper's methodology by using only LLM-generated inputs, which ensures fair comparison across methods.
 
-Each sample is concatenated with the original stub to form a complete function, then run on each input with a 10 second timeout. Two completions are merged only if they produce the same output on every input. Any completion that raises an exception or times out on any input is placed in an isolated cluster. The completion written to the output file is the greedy completion from the shared lm-polygraph run, converted back to body-only format.
+Each sample is concatenated with the original stub to form a complete function, then run on each input with a 10 second timeout. Two completions are merged only if they produce the same output on every input. Any completion that raises an exception or times out on any input is placed in an isolated cluster. The completion written to the output file is the greedy completion from the shared LM-Polygraph run, converted back to body-only format.
 
 == Symbolic Clustering <symbolic_clustering_section>
 

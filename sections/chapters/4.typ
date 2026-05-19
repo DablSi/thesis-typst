@@ -20,11 +20,11 @@ The prompt wraps the stub in a fenced Python block with an instruction to comple
 
 == Uncertainty Estimation Methods
 
-This evaluation covers only unsupervised methods, which produce uncertainty scores without any labelled calibration data. Supervised methods, such as those that fit a reference distribution of correct examples, are excluded. The reason is that training those methods is out of scope for this thesis.
+This evaluation covers only unsupervised methods, which produce uncertainty scores without any labaled calibration data. Supervised methods, such as those that fit a reference distribution of correct examples, are excluded. The reason is that training those methods is out of scope for this thesis.
 
-Standard UQ methods from natural language generation transfer poorly to code. According to @sharma2025assessingcorrectnessllmbasedcode, text-similarity and token-probability approaches show no significant correlation with code correctness. Therefore, I pair the best-performing lm-polygraph @Vashurin_2025 methods with execution-based methods that assess code behaviour directly.
+Standard UQ methods from natural language generation transfer poorly to code. According to @sharma2025assessingcorrectnessllmbasedcode, text-similarity and token-probability approaches show no significant correlation with code correctness. Therefore, I pair the best-performing LM-Polygraph @Vashurin_2025 methods with execution-based methods that assess code behavior directly.
 
-Thirteen uncertainty scores are evaluated in total: nine from the *lm-polygraph* @Vashurin_2025 framework and four from two execution-based approaches, each producing two scores from the same cluster structure (cluster count and semantic entropy). @method_summary summarises them.
+Thirteen uncertainty scores are evaluated in total: nine from the *LM-Polygraph* @Vashurin_2025 framework and four from two execution-based approaches, each producing two scores from the same cluster structure (cluster count and semantic entropy). @method_summary summarises them.
 
 #figure(
   table(
@@ -50,7 +50,7 @@ Thirteen uncertainty scores are evaluated in total: nine from the *lm-polygraph*
 
 === Method Selection
 
-I selected the nine lm-polygraph methods by ranking all unsupervised estimators in the framework by mean PRR across two models (Stable LM 2 12B and Mistral 7B v0.2) in the original benchmark @Vashurin_2025. The top ten by mean PRR were MSP, CCP, SAR, HUQ-MD, ROUGE-L, DegMat NLI, Perplexity, DegMat Jaccard, BLEU, and TokenSAR. I excluded HUQ-MD because it is supervised: it requires a reference distribution of correct examples to compute Mahalanobis distances. The remaining nine span the information-based and sample-diversity categories. Reflexive methods did not reach the top ten.
+I selected the nine LM-Polygraph methods by ranking all unsupervised estimators in the framework by mean PRR across two models (Stable LM 2 12B and Mistral 7B v0.2) in the original benchmark @Vashurin_2025. The top ten by mean PRR were MSP, CCP, SAR, HUQ-MD, ROUGE-L, DegMat NLI, Perplexity, DegMat Jaccard, BLEU, and TokenSAR. I excluded HUQ-MD because it is supervised: it requires a reference distribution of correct examples to compute Mahalanobis distances. The remaining nine span the information-based and sample-diversity categories. Reflexive methods did not reach the top ten.
 
 Then the picked methods are grouped by whether they require an auxiliary NLI model. The first group (MSP, Perplexity, Lexical Similarity, DegMat-Jaccard) operates without an auxiliary model. The second group (CCP, SAR, TokenSAR, DegMat-NLI) additionally uses DeBERTa for semantic agreement. The execution-based methods form a third group.
 
@@ -60,13 +60,13 @@ These methods use only token-level log-probabilities from a single greedy pass a
 
 *Maximum Sequence Probability (MSP)* is the product of the greedy token probabilities:
 $ U_"MSP" = 1 - \P(y | x)$, 
-where $y$ is the generated sequence and $x$ is the prompt.
+where $y$ is the generated sequence, and $x$ is the prompt.
 
-*Perplexity* @Fomicheva normalises MSP by sequence length so scores are comparable across outputs of different length:
+*Perplexity* @Fomicheva normalizes MSP by sequence length, so scores are comparable across outputs of different lengths:
 $ U_"PPL" = exp lr(( -1/L log p(x | y) )) $
 Higher perplexity indicates higher uncertainty.
 
-*Lexical Similarity* @Fomicheva methods measure consistency across samples. The mean overlap between the greedy completion and each of the $N$ stochastic samples is computed using ROUGE-L @rouge (longest common subsequence recall) and separately using BLEU @bleu (n-gram precision). A model that generates diverse completions for the same problem is considered more uncertain than one whose completions are consistent.
+*Lexical Similarity* @Fomicheva methods measure consistency across samples. The mean overlap between the greedy completion and each of the $N$ stochastic samples is computed using ROUGE-L @rouge (longest common subsequence recall) and separately using BLEU @bleu (n-gram precision). A model that generates diverse completions for the same problem is considered more uncertain than those whose completions are consistent.
 
 *Degree Matrix-Jaccard (DegMat-Jaccard)* @lin2024generatingconfidenceuncertaintyquantification measures consistency across all pairs of samples rather than against the greedy output. A graph is constructed with one node per sample and edge weights given by the Jaccard similarity of the two samples' token sets. The uncertainty score is derived from the spectral properties of the graph's degree matrix: similar completions give low spectral spread, diverse ones give high.
 
@@ -74,17 +74,17 @@ Higher perplexity indicates higher uncertainty.
 
 These methods additionally pass pairs of completions through DeBERTa @deberta, a bidirectional transformer trained on natural language inference (NLI). Given two texts, it outputs probabilities for entailment, neutrality, and contradiction. Entailment probability serves as a proxy for semantic agreement between completions: an approximation when applied to code, but richer than token overlap.
 
-*Claim-Conditioned Probability (CCP)* @ccp re-weights the greedy token probabilities using NLI entailment scores from the sampled alternatives. If many samples are semantically consistent with the greedy completion, its token probabilities are upweighted, lowering the uncertainty estimate.
+*Claim-Conditioned Probability (CCP)* @ccp re-weights the greedy token probabilities using NLI entailment scores from the sampled alternatives. If many samples are semantically consistent with the greedy completion, their token probabilities are upweighted, lowering the uncertainty estimate.
 
 *SAR (Semantic Answer Replacement)* @sar measures how sensitive the greedy output is to token substitution. For each token, semantically equivalent alternatives from the sampled completions are identified using DeBERTa, and the change in sequence probability from the substitution is recorded. Tokens whose replacement barely shifts probability are less informative, while load-bearing tokens shift it more. High average sensitivity indicates higher uncertainty.
 
 *TokenSAR* @sar uses the same per-token sensitivities as SAR but weights each by its contribution to the overall sequence probability before aggregation.
 
-*Degree Matrix-NLI (DegMat-NLI)* @lin2024generatingconfidenceuncertaintyquantification applies the same graph-based framework as DegMat-Jaccard but uses NLI entailment probability as the edge weight instead of Jaccard token overlap, capturing semantic rather than surface agreement.
+*Degree Matrix-NLI (DegMat-NLI)* @lin2024generatingconfidenceuncertaintyquantification applies the same graph-based framework as DegMat-Jaccard but uses NLI entailment probability as the edge weight rather than Jaccard token overlap, capturing semantic rather than surface-level agreement.
 
 === Execution-Based Methods
 
-Functional clustering and symbolic clustering use neither token probabilities nor text similarity. Instead, they generate $N = 10$ (in this experiment) stochastic completions per problem and group them by whether they produce the same behaviour when executed. The assumption: a model producing behaviourally equivalent completions is more likely to be correct than one whose completions diverge.
+Functional clustering and symbolic clustering use neither token probabilities nor text similarity. Instead, they generate $N = 10$ (in this experiment) stochastic completions per problem and group them by whether they produce the same behavior when executed. The assumption: a model producing behaviorally equivalent completions is more likely to be correct than one whose completions diverge.
 
 Each method partitions the $N$ completions into equivalence classes, from which two uncertainty scores are computed. *Cluster Count (CC)* @sharma2025assessingcorrectnessllmbasedcode @Ravuri2025EliminatingHE is:
 $ U_"CC" = 1 - (|C_"max"|) / N $
@@ -92,9 +92,9 @@ where $|C_"max"|$ is the size of the largest class. CC is zero when all completi
 
 *Semantic Entropy (SE)* @kuhn2023semanticuncertaintylinguisticinvariances @sharma2025assessingcorrectnessllmbasedcode is the Shannon entropy of the cluster size distribution under a uniform prior:
 $ U_"SE" = -sum_c (|c|)/N * log (|c|)/N $
-SE is zero when all completions fall in one cluster and is maximised when they spread evenly across many. @sharma2025assessingcorrectnessllmbasedcode shows that CC and SE produce comparable results when clustering is accurate. Both are reported for direct comparison.
+SE is zero when all completions fall in one cluster and is maximized when they spread evenly across many. Sharma _et al._ @sharma2025assessingcorrectnessllmbasedcode shows that CC and SE produce comparable results when clustering is accurate. Both are reported for direct comparison.
 
-@sharma2025assessingcorrectnessllmbasedcode also proposes Mutual Information (MI), which queries the model twice per problem with the second prompt formed by appending the first response to the original. MI is excluded here because it produces structurally different completions, which would make pass\@1 incomparable across methods.
+Sharma _et al._ @sharma2025assessingcorrectnessllmbasedcode also propose Mutual Information (MI), which queries the model twice per problem with the second prompt formed by appending the first response to the original. MI is excluded here because it produces structurally different completions, which would make pass\@1 incomparable across methods.
 
 The two execution-based methods use the same CC and SE formulas and differ only in how equivalence is determined.
 
@@ -128,11 +128,11 @@ $"PRR" = 1$ means perfect failure identification. $"PRR" = 0$ means random ranki
 
 #figure(
   image("../../figures/prr.png", width: 60%),
-  caption: [Prediction-rejection curve explaination @Vashurin_2025],
+  caption: [Prediction-rejection curve explanation @Vashurin_2025],
 ) <prr>
 
 *PR-AUC* is the area under the precision-recall curve, treating failures ($c_i = 0$) as the positive class and uncertainty as the detection score. Precision is the fraction of flagged predictions that are incorrect. Recall is the fraction of all incorrect predictions that are flagged. PR-AUC aggregates this trade-off across all thresholds.
 
 PR-AUC is the primary metric of this thesis. The intended use of code UQ is a threshold decision: a generated function is flagged for review or accepted. PR-AUC measures the precision-recall trade-off at every threshold, while PRR measures the full ranking of problems by uncertainty, independent of any specific threshold. With pass\@1 of 0.689 and 0.726, failures are the minority class, where PR-AUC is preferred.
 
-PRR is reported alongside because it is the standard metric in lm-polygraph @Vashurin_2025 and most natural-language UQ work, and because it is scale-invariant against pass\@1 differences across models.
+PRR is reported alongside because it is the standard metric in LM-Polygraph @Vashurin_2025 and most natural-language UQ work, and because it is scale-invariant against pass\@1 differences across models.

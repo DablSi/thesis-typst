@@ -10,15 +10,15 @@ By PR-AUC, no single method leads on all three models. Functional clustering ran
 
 By PRR, the rewritten symbolic clustering implementation enters the top tier on the larger models: first and second on DeepSeek-6.7B (0.845, 0.838) and third and fourth on Qwen (~0.846). On DeepSeek-1.3B, sample-diversity methods hold the top four (ROUGE-L, DegMat-Jaccard, BLEU, SAR). PR-AUC and PRR rank methods differently in every table. @metric_disagreement explains why.
 
-Model size matters. On DeepSeek-1.3B, functional clustering ranks last on both metrics, four to five percentage points below every other method. Smaller models produce more diverse completions per problem and less reliable LLM-generated test inputs. This collapses behaviourally distinct completions into the same cluster. Sample-diversity methods that read text overlap directly are robust to this shift and dominate at the smaller scale.
+Model size matters. On DeepSeek-1.3B, functional clustering ranks last on both metrics, four to five percentage points below every other method. Smaller models produce more diverse completions per problem and less reliable LLM-generated test inputs. This collapses behaviorally distinct completions into the same cluster. Sample-diversity methods that read text overlap directly are robust to this shift and dominate at the smaller scale.
 
-The compute cost of execution-based methods depends on the task: NP-hard problems or factorial-time solutions can produce extremely long runtimes. Timeouts bound this in practice, since both clustering methods fall back to merging on timeout. However, each timeout collapses potentially distinct completions into one cluster, degrading UQ quality. Compute-heavy lm-polygraph methods have predictable cost but lack this escape valve: partial computation does not return a usable uncertainty estimate.
+The compute cost of execution-based methods depends on the task: NP-hard problems or factorial-time solutions can produce extremely long runtimes. Timeouts bound this in practice, since both clustering methods fall back to merging on timeout. However, each timeout collapses potentially distinct completions into one cluster, degrading UQ quality. Compute-heavy LM-Polygraph methods have predictable cost but lack this escape valve: partial computation does not return a usable uncertainty estimate.
 
 == Contributions
 - A shared-inference pipeline that gives identical pass\@1 across all thirteen UQ methods on three code LLMs, so PR-AUC and PRR comparisons are not affected by differences between generation runs.
 - A correction to the open source functional-clustering implementation, which used HumanEval's own assertions as test inputs instead of generating them via the LLM as @Ravuri2025EliminatingHE describes. With independent inputs, PRR drops from ~0.87 to ~0.80 on DeepSeek-6.7B, so part of the earlier advantage came from using the evaluation tests.
 - An optimised symbolic clustering implementation.
-- The first direct comparison on PR-AUC and PRR of the top lm-polygraph estimators against execution-based clustering on a shared code benchmark. Compares two model families and two model sizes within one family, showing that the ranking depends on both family and scale.
+- The first direct comparison on PR-AUC and PRR of the top LM-Polygraph estimators against execution-based clustering on a shared code benchmark. Compares two model families and two model sizes within one family, showing that the ranking depends on both family and scale.
 
 == Limitations
 

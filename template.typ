@@ -8,7 +8,7 @@
     bottom-edge: -0.3em,
     // Match LaTeX template's \usepackage{tempora}; fall back to Liberation Serif
     // if the bundled Tempora .otf files are not installed.
-    font: ("Tempora LGC Uni", "Liberation Serif"),
+    font: "Times New Roman",
   )
   set par(
     leading: 0.7em,
@@ -41,13 +41,11 @@
   )
   set page(
     "a4",
-    // Mirror LaTeX template's setmarginsrb (left=2.5cm, body top=2.2cm,
-    // headheight=32.0976pt, headsep=10mm, right=2.2cm, bottom=2.2cm).
     margin: (
       left: 2.5cm,
-      top: 2.2cm + 32.0976pt + 10mm,
-      right: 2.2cm,
-      bottom: 2.2cm
+      top: 2cm,
+      right: 2cm,
+      bottom: 2cm
     ),
     footer: context {},
     header: context {
@@ -186,10 +184,6 @@
 
     align(center, it.body)
   }
-  
-  // Image figures: "Fig. 1.1. Caption" — mirrors LaTeX
-  // \captionsetup[figure]{name={Fig.}, labelsep=period} with
-  // \counterwithin{figure}{chapter}.
   show figure.where(kind: image): set figure(supplement: "Fig.")
   show figure.where(kind: image): set figure.caption(separator: ". ")
   show figure.where(kind: image): set figure(numbering: n => {
