@@ -39,7 +39,16 @@
       if chapter-start { return }
 
       let bib = query(selector(bibliography))
-      let in-bib = bib.len() > 0 and bib.first().location().page() < here().page()
+      let bib-page = if bib.len() > 0 { bib.first().location().page() } else { 0 }
+      // Treat as "in appendix" if a level-1 heading exists on or after the
+      // bibliography page and on or before the current page. Otherwise the
+      // appendix would inherit the "Bibliography" header.
+      let l1-after-bib = query(selector(heading.where(level: 1)))
+        .filter(h =>
+          h.location().page() > bib-page and
+          h.location().page() <= here().page())
+      let in-appendix = l1-after-bib.len() > 0
+      let in-bib = bib.len() > 0 and bib-page < here().page() and not in-appendix
 
       let label = if in-bib {
         [Bibliography]
@@ -52,7 +61,13 @@
         if before.len() == 0 and on-top.len() == 0 { return }
 
         let current = if on-top.len() > 0 { on-top.first() } else { before.last() }
-        let num = counter(heading).at(current.location()).map(str).join(".")
+        let nums = counter(heading).at(current.location())
+        let num = if in-appendix {
+          let parts = (str.from-unicode(64 + nums.at(0)),) + nums.slice(1).map(str)
+          parts.join(".")
+        } else {
+          nums.map(str).join(".")
+        }
         [#num #current.body]
       }
 
