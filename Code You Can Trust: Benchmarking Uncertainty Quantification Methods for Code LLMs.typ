@@ -34,3 +34,5 @@
 // #include "sections/chapters/n.typ"
 
 #include "sections/bibliography.typ"
+
+#include "sections/chapters/appendix.typ"
