@@ -9,12 +9,13 @@
   )
 
   set par(
-    leading: 1em,
-    justify: true,
-    first-line-indent: (amount: 1.25cm, all: true),
+    justify: true, 
+    linebreaks: "optimized",
+    first-line-indent: (amount: 1em, all: true), // Абзацный отступ. Должен быть одинаковым по всему тексту и равен пяти знакам (ГОСТ Р 7.0.11-2011, 5.3.7).
+    leading: 1em, // Полуторный интервал (ГОСТ 7.0.11-2011, 5.3.6)
   )
 
-  set list(marker: [•], indent: 1.25cm, body-indent: 0.5em, spacing: 1em)
+  set list(marker: [•], indent: 0.5em, body-indent: 0.5em, spacing: 1em)
   set enum(indent: 1.25cm, body-indent: 0.5em, spacing: 1em)
   show list: it => {
     set par(leading: 1em, first-line-indent: (amount: 0cm, all: false))
@@ -106,10 +107,15 @@
 
   show figure: set block(breakable: true)
   show figure: it => {
-    v(2em)
-    it
-    v(2em)
-  }
+      v(1em)
+      if it.kind == image {
+        block(breakable: false, sticky: true, width: 100%, align(center, it.body))
+        it.caption
+      } else {
+        it
+      }
+      v(1em)
+    }
   show figure.where(kind: table): it => {
     align(center)[
       TABLE #it.counter.display("1") \
@@ -123,9 +129,19 @@
     let chapter = counter(heading.where(level: 1)).at(here()).first()
     [#chapter.#n]
   })
-  show figure.caption: it => {
-    set align(left)
-    it
+
+  // 2. Apply explicit paragraph block styling ONLY to image captions
+  show figure.caption: cap => {
+    if cap.kind == image {
+      set align(left)
+      set par(justify: true, leading: 1em)
+      
+      // Evaluate the counter to get the visual prefix (e.g., "Fig. 1.1. ")
+      let number = context cap.counter.display(cap.numbering)
+      
+      // Force a structural 1em horizontal indent right at the start
+      [#h(1em)#cap.supplement #number#cap.separator#cap.body]
+    }
   }
 
   set outline(indent: auto)
@@ -136,6 +152,32 @@
     radius: 2pt,
     stroke: 1pt,
   )
+
+  show table: set table(
+    inset: 9pt,
+    fill: (col, row) => {
+      if row == 0 {
+        rgb("ffffff")
+      } else if calc.odd(row) {
+        rgb("f3f4f6")
+      } else {
+        rgb("ffffff")
+      }
+    }
+  )
+
+  show figure.where(kind: table): it => {
+    // Разрешаем фигуре разрываться, но управляем внутренними блоками
+    block(breakable: true, sticky: true, width: 100%)[
+      // sticky: true привязывает заголовок к первой строке таблицы
+        #align(center)[
+          TABLE #it.counter.display("1") \
+          #it.caption.body
+        ]
+        #v(0.5em) // Небольшой отступ между заголовком и таблицей
+      #align(center, it.body)
+    ]
+  }
 
   body
 }

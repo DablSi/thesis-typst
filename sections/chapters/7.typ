@@ -2,7 +2,7 @@
 
 == Symbolic Clustering Timeouts
 
-Symbolic clustering ranks at or near the top by PRR on DeepSeek-6.7B (0.845) and Qwen (0.846), but PR-AUC stays in the lower half (\~0.42 on both). The strong PRR depends on the optimised implementation described in @symbolic_clustering_section. With the naive subprocess per each pair baseline, most pairs timed out within the 10-second budget and were merged by default. This collapsed nearly all completions into a single cluster, leaving symbolic clustering near the bottom of the table. The optimisations preserve the same timeout budget but let many more pairs reach a real CrossHair verdict, which produces the high PRR.
+Symbolic clustering ranks at or near the top by PRR on DeepSeek-6.7B (0.845) and Qwen (0.846), but PR-AUC stays in the lower half (\~0.42 on both). The strong PRR depends on the optimized implementation described in @symbolic_clustering_section. With the naive subprocess per each pair baseline, most pairs timed out within the 10-second budget and were merged by default. This collapsed nearly all completions into a single cluster, leaving symbolic clustering near the bottom of the table. The optimizations preserve the same timeout budget but let many more pairs reach a real CrossHair verdict, which produces the high PRR.
 
 The gap between PRR and PR-AUC comes from symbolic clustering's score distribution. Results collapse into a small number of cluster sizes (bounded by $N = 10$), so many problems share the same score. These "ties" decrease PR-AUC at any fixed precision-recall threshold, even when the ranking is strong. @metric_disagreement covers this in detail.
 
@@ -18,7 +18,7 @@ Therefore, execution-based clustering is most useful at model scales where the L
 
 == PR-AUC and PRR Disagree <metric_disagreement>
 
-The two metrics measure different aspects of an uncertainty estimator. PRR depends on the full ranking of problems by uncertainty: PRR is the area between the rejection curve and the random baseline, normalised against the oracle. PR-AUC aggregates precision across recall thresholds, so it depends on whether incorrect predictions receive higher uncertainty than correct ones, not on the order within each group.
+The two metrics measure different aspects of an uncertainty estimator. PRR depends on the full ranking of problems by uncertainty: PRR is the area between the rejection curve and the random baseline, normalized against the oracle. PR-AUC aggregates precision across recall thresholds, so it depends on whether incorrect predictions receive higher uncertainty than correct ones, not on the order within each group.
 
 Cluster-based estimators (functional and symbolic clustering) produce few distinct values, bounded by $N = 10$, so many problems share the same score. Whether this hurts PRR or PR-AUC depends on how the tied scores align with correctness. If a single threshold cleanly separates correct from incorrect predictions, PR-AUC is high. If the ordering matches correctness on average but no single threshold is sharp, PRR is high while PR-AUC suffers. On DeepSeek-6.7B, functional clustering SE shows the first pattern: first by PR-AUC (0.607) but only seventh by PRR (0.804). Symbolic clustering SE shows the second: first by PRR (0.845) but eleventh by PR-AUC (0.428). Continuous estimators such as ROUGE-L produce smooth rankings with strong PRR and a flatter precision-recall trade-off.
 

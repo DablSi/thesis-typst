@@ -1,6 +1,6 @@
 = Results
 
-== Pass\@1
+== Pass\@k
 
 #figure(
   table(
@@ -14,7 +14,7 @@
   caption: [Pass\@k on HumanEval]
 )
 
-All thirteen uncertainty methods share pass\@1 per model by construction.
+All thirteen uncertainty methods share pass\@1 per model by construction. The resulting pass\@1 are similar to the results reported in the original papers for each model. Pass\@1 score also serves as a baseline for the uncertainty methods: a method that cannot beat pass\@1 is not useful for improving over random guessing.
 
 == PR-AUC and PRR
 
@@ -40,7 +40,7 @@ All thirteen uncertainty methods share pass\@1 per model by construction.
   caption: [PR-AUC and PRR on DeepSeek-Coder-6.7B-Instruct]
 ) <deepseek_prr>
 
-On DeepSeek-6.7B, functional clustering SE and CC lead by PR-AUC (0.607 and 0.594), followed by ROUGE-L (0.585) and CCP (0.583). The PRR ordering is different: symbolic clustering SE and CC top the table (0.845 and 0.838), followed by SAR (0.833), ROUGE-L (0.830), DegMat-Jaccard (0.810), and BLEU (0.808). Functional clustering ranks first by PR-AUC but only seventh and eighth by PRR (~0.80). Information-theoretic methods (CCP, MSP, Perplexity, TokenSAR) are mid-pack on both metrics. DegMat-NLI ranks last on both.
+On DeepSeek-6.7B, functional clustering SE and CC lead by PR-AUC (0.607 and 0.594), followed by ROUGE-L (0.585) and CCP (0.583). The PRR ordering is different: symbolic clustering SE and CC top the table (0.845 and 0.838), followed by SAR (0.833), ROUGE-L (0.830), DegMat-Jaccard (0.810), and BLEU (0.808). Functional clustering ranks first by PR-AUC but only seventh and eighth by PRR (\~0.80). Information-theoretic methods (CCP, MSP, Perplexity, TokenSAR) are mid-pack on both metrics. DegMat-NLI ranks last on both.
 
 #figure(
   table(
@@ -64,7 +64,7 @@ On DeepSeek-6.7B, functional clustering SE and CC lead by PR-AUC (0.607 and 0.59
   caption: [PR-AUC and PRR on Qwen2.5-Coder-7B-Instruct]
 ) <qwen_prr>
 
-On Qwen, CCP (0.643) and MSP (0.557) lead by PR-AUC, followed by ROUGE-L (0.480) and BLEU (0.457). By PRR, MSP (0.859) and CCP (0.858) still hold the top two, followed by symbolic clustering SE and CC (~0.846), then Perplexity and TokenSAR (~0.840). Functional clustering inverts its DeepSeek result: seventh by PRR (~0.836) and only eleventh and thirteenth by PR-AUC (0.39–0.40). DegMat-NLI ranks near the bottom on both metrics.
+On Qwen, CCP (0.643) and MSP (0.557) lead by PR-AUC, followed by ROUGE-L (0.480) and BLEU (0.457). By PRR, MSP (0.859) and CCP (0.858) still hold the top two, followed by symbolic clustering SE and CC (\~0.846), then Perplexity and TokenSAR (\~0.840). Functional clustering inverts its DeepSeek result: seventh by PRR (\~0.836) and only eleventh and thirteenth by PR-AUC (0.39–0.40). DegMat-NLI ranks near the bottom on both metrics.
 
 #figure(
   table(
@@ -88,32 +88,32 @@ On Qwen, CCP (0.643) and MSP (0.557) lead by PR-AUC, followed by ROUGE-L (0.480)
   caption: [PR-AUC and PRR on DeepSeek-Coder-1.3B-Instruct]
 ) <deepseek_small_prr>
 
-On DeepSeek-1.3B, ROUGE-L (0.713) and CCP (0.713) lead by PR-AUC, followed by MSP (0.687), DegMat-Jaccard (0.685), and SAR (0.680). The lower pass\@1 (50.6%) raises absolute PR-AUC across the board because failures are now the majority class. By PRR, sample-diversity methods take the top: ROUGE-L (0.678), DegMat-Jaccard (0.654), BLEU (0.654), SAR (0.647), with symbolic clustering SE and CC fifth and seventh (~0.645). Functional clustering ranks last on both metrics by a wide margin (PRR ~0.480, PR-AUC ~0.567), reversing its DeepSeek-6.7B position.
+On DeepSeek-1.3B, ROUGE-L (0.713) and CCP (0.713) lead by PR-AUC, followed by MSP (0.687), DegMat-Jaccard (0.685), and SAR (0.680). The lower pass\@1 (50.6%) raises absolute PR-AUC across the board because failures are now the majority class. By PRR, sample-diversity methods take the top: ROUGE-L (0.678), DegMat-Jaccard (0.654), BLEU (0.654), SAR (0.647), with symbolic clustering SE and CC fifth and seventh (\~0.645). Functional clustering ranks last on both metrics by a wide margin (PRR \~0.480, PR-AUC \~0.567), reversing its position in DeepSeek-6.7B.
 
 == PR-AUC and PRR Curves
 
 To better understand the results, I have selected several PR-AUC and PRR plots.
 
 #figure(
-  image("/figures/pr_curves_grouped_deepseek_code-specific.png", width: 90%),
+  image("/figures/pr_curves_grouped_deepseek_code-specific.png"),
   caption: [Precision-recall curves for code-specific methods on DeepSeek-Coder-6.7B-Instruct]
 ) <ds67b_code_pr>
 #figure(
-  image("/figures/prr_curves_grouped_deepseek_code-specific.png", width: 90%),
+  image("/figures/prr_curves_grouped_deepseek_code-specific.png"),
   caption: [PRR curves for code-specific methods on DeepSeek-Coder-6.7B-Instruct]
 ) <ds67b_code_prr>
 
 On DeepSeek-6.7B, code-specific methods behave differently across metrics. In  @ds67b_code_pr, functional clustering has higher precision over a wide recall range, leading to the best PR-AUC. In  @ds67b_code_prr, symbolic clustering achieves higher PRR. This shows that PR-AUC and PRR favor different behaviors.
 
 #figure(
-  image("/figures/prr_curves_grouped_qwen_information-theoretic.png", width: 90%),
+  image("/figures/prr_curves_grouped_qwen_information-theoretic.png"),
   caption: [PRR curves for information-theoretic methods on Qwen2.5-Coder-7B-Instruct]
 ) <qwen_info_prr>
 
 On Qwen, information-theoretic methods perform best. In  @qwen_info_prr, claim-conditioned probability and maximum sequence probability provide better rejection across most coverage levels, consistent with their top PRR scores.
 
 #figure(
-  image("/figures/prr_curves_grouped_deepseek-1.3b_sample-diversity.png", width: 90%),
+  image("/figures/prr_curves_grouped_deepseek-1.3b_sample-diversity.png"),
   caption: [PRR curves for diversity-based methods on DeepSeek-Coder-1.3B-Instruct]
 ) <ds13b_div_prr>
 
